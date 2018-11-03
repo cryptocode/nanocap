@@ -55,13 +55,12 @@ add_executable(nanocap
 	src/webserver.hpp src/webserver.cpp
 	src/nano.cpp src/nano.h src/kaitai/kaitaistream.cpp)
 
-target_link_libraries(nanocap sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus)
+target_link_libraries(nanocap ${CMAKE_DL_LIBS} sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus)
 
 if (APPLE)
 	target_link_libraries(nanocap "-framework CoreFoundation")
 	target_link_libraries(nanocap "-framework SystemConfiguration")
 
 	#target_link_libraries(reassembly "-framework CoreFoundation")
-	#target_link_libraries(reassembly "-framework SystemConfiguration")
-
+	#target_link_libraries(reassembly "-framework SystemConfiguration")	
 endif ()

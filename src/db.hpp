@@ -18,7 +18,7 @@ namespace nanocap
 	public:
 		db(nanocap::app& app);
 		~db();
-		
+				
 		std::error_code put(nano::protocol::nano_t::msg_keepalive_t& msg);
 		std::error_code put(nano::protocol::nano_t::msg_confirm_ack_t& msg);
 		std::error_code put(nano::protocol::nano_t::msg_confirm_req_t& msg);
