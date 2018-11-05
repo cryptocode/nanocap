@@ -1,0 +1,1066 @@
+// This is a generated file! Please edit source .ksy file and use kaitai-struct-compiler to rebuild
+
+(function (root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    define(['kaitai-struct/KaitaiStream'], factory);
+  } else if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('kaitai-struct/KaitaiStream'));
+  } else {
+    root.Nano = factory(root.KaitaiStream);
+  }
+}(this, function (KaitaiStream) {
+var Nano = (function() {
+  Nano.EnumBlocktype = Object.freeze({
+    INVALID: 0,
+    NOT_A_BLOCK: 1,
+    SEND: 2,
+    RECEIVE: 3,
+    OPEN: 4,
+    CHANGE: 5,
+    STATE: 6,
+
+    0: "INVALID",
+    1: "NOT_A_BLOCK",
+    2: "SEND",
+    3: "RECEIVE",
+    4: "OPEN",
+    5: "CHANGE",
+    6: "STATE",
+  });
+
+  Nano.EnumMsgtype = Object.freeze({
+    INVALID: 0,
+    NOT_A_TYPE: 1,
+    KEEPALIVE: 2,
+    PUBLISH: 3,
+    CONFIRM_REQ: 4,
+    CONFIRM_ACK: 5,
+    BULK_PULL: 6,
+    BULK_PUSH: 7,
+    FRONTIER_REQ: 8,
+    BULK_PULL_BLOCKS: 9,
+    NODE_ID_HANDSHAKE: 10,
+    BULK_PULL_ACCOUNT: 11,
+
+    0: "INVALID",
+    1: "NOT_A_TYPE",
+    2: "KEEPALIVE",
+    3: "PUBLISH",
+    4: "CONFIRM_REQ",
+    5: "CONFIRM_ACK",
+    6: "BULK_PULL",
+    7: "BULK_PUSH",
+    8: "FRONTIER_REQ",
+    9: "BULK_PULL_BLOCKS",
+    10: "NODE_ID_HANDSHAKE",
+    11: "BULK_PULL_ACCOUNT",
+  });
+
+  Nano.EnumNetwork = Object.freeze({
+    NETWORK_TEST: 65,
+    NETWORK_BETA: 66,
+    NETWORK_LIVE: 67,
+
+    65: "NETWORK_TEST",
+    66: "NETWORK_BETA",
+    67: "NETWORK_LIVE",
+  });
+
+  Nano.EnumBulkPullAccount = Object.freeze({
+    PENDING_HASH_AND_AMOUNT: 0,
+    PENDING_ADDRESS_ONLY: 1,
+    PENDING_HASH_AMOUNT_AND_ADDRESS: 2,
+
+    0: "PENDING_HASH_AND_AMOUNT",
+    1: "PENDING_ADDRESS_ONLY",
+    2: "PENDING_HASH_AMOUNT_AND_ADDRESS",
+  });
+
+  Nano.ProtocolVersion = Object.freeze({
+    VALUE: 15,
+
+    15: "VALUE",
+  });
+
+  function Nano(_io, _parent, _root) {
+    this._io = _io;
+    this._parent = _parent;
+    this._root = _root || this;
+
+    this._read();
+  }
+  Nano.prototype._read = function() {
+    this.header = new MessageHeader(this._io, this, this._root);
+    switch (this.header.messageType) {
+    case Nano.EnumMsgtype.CONFIRM_REQ:
+      this.body = new MsgConfirmReq(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.CONFIRM_ACK:
+      this.body = new MsgConfirmAck(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.BULK_PULL:
+      this.body = new MsgBulkPull(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.BULK_PULL_ACCOUNT:
+      this.body = new MsgBulkPullAccount(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.KEEPALIVE:
+      this.body = new MsgKeepalive(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.BULK_PUSH:
+      this.body = new MsgBulkPush(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.NODE_ID_HANDSHAKE:
+      this.body = new MsgNodeIdHandshake(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.FRONTIER_REQ:
+      this.body = new MsgFrontierReq(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.BULK_PULL_BLOCKS:
+      this.body = new MsgBulkPullBlocks(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.PUBLISH:
+      this.body = new MsgPublish(this._io, this, this._root);
+      break;
+    default:
+      this.body = new IgnoreUntilEof(this._io, this, this._root);
+      break;
+    }
+  }
+
+  var BlockSend = Nano.BlockSend = (function() {
+    function BlockSend(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    BlockSend.prototype._read = function() {
+      this.previous = this._io.readBytes(32);
+      this.destination = this._io.readBytes(32);
+      this.balance = this._io.readBytes(16);
+      this.signature = this._io.readBytes(64);
+      this.work = this._io.readU8le();
+    }
+
+    /**
+     * Hash of the previous block
+     */
+
+    /**
+     * Public key of destination account
+     */
+
+    /**
+     * 128-bit big endian balance
+     */
+
+    /**
+     * ed25519 signature
+     */
+
+    /**
+     * Proof of work
+     */
+
+    return BlockSend;
+  })();
+
+  /**
+   * Selects a block based on the argument
+   */
+
+  var BlockSelector = Nano.BlockSelector = (function() {
+    function BlockSelector(_io, _parent, _root, argBlockType) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+      this.argBlockType = argBlockType;
+
+      this._read();
+    }
+    BlockSelector.prototype._read = function() {
+      switch (this.argBlockType) {
+      case Nano.EnumBlocktype.RECEIVE:
+        this.block = new BlockReceive(this._io, this, this._root);
+        break;
+      case Nano.EnumBlocktype.CHANGE:
+        this.block = new BlockChange(this._io, this, this._root);
+        break;
+      case Nano.EnumBlocktype.STATE:
+        this.block = new BlockState(this._io, this, this._root);
+        break;
+      case Nano.EnumBlocktype.OPEN:
+        this.block = new BlockOpen(this._io, this, this._root);
+        break;
+      case Nano.EnumBlocktype.SEND:
+        this.block = new BlockSend(this._io, this, this._root);
+        break;
+      default:
+        this.block = new IgnoreUntilEof(this._io, this, this._root);
+        break;
+      }
+    }
+
+    return BlockSelector;
+  })();
+
+  var NodeIdQuery = Nano.NodeIdQuery = (function() {
+    function NodeIdQuery(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    NodeIdQuery.prototype._read = function() {
+      this.nodeId = this._io.readBytes(32);
+    }
+
+    /**
+     * Public key used as node id.
+     */
+
+    return NodeIdQuery;
+  })();
+
+  var BlockReceive = Nano.BlockReceive = (function() {
+    function BlockReceive(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    BlockReceive.prototype._read = function() {
+      this.previous = this._io.readBytes(32);
+      this.source = this._io.readBytes(32);
+      this.signature = this._io.readBytes(64);
+      this.work = this._io.readU8le();
+    }
+
+    /**
+     * Hash of the previous block
+     */
+
+    /**
+     * Public key of sending account
+     */
+
+    /**
+     * ed25519 signature
+     */
+
+    /**
+     * Proof of work
+     */
+
+    return BlockReceive;
+  })();
+
+  var BlockChange = Nano.BlockChange = (function() {
+    function BlockChange(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    BlockChange.prototype._read = function() {
+      this.previous = this._io.readBytes(32);
+      this.representative = this._io.readBytes(32);
+      this.signature = this._io.readBytes(64);
+      this.work = this._io.readU8le();
+    }
+
+    /**
+     * Hash of the previous block
+     */
+
+    /**
+     * Public key of new representative account
+     */
+
+    /**
+     * ed25519 signature
+     */
+
+    /**
+     * Proof of work
+     */
+
+    return BlockChange;
+  })();
+
+  /**
+   * Bulk pull request.
+   */
+
+  var MsgBulkPull = Nano.MsgBulkPull = (function() {
+    function MsgBulkPull(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgBulkPull.prototype._read = function() {
+      this.start = this._io.readBytes(32);
+      this.end = this._io.readBytes(32);
+    }
+
+    /**
+     * Account public key or block hash.
+     */
+
+    /**
+     * End block hash. May be zero.
+     */
+
+    return MsgBulkPull;
+  })();
+
+  /**
+   * A peer entry in the keepalive message
+   */
+
+  var Peer = Nano.Peer = (function() {
+    function Peer(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    Peer.prototype._read = function() {
+      this.address = this._io.readBytes(16);
+      this.port = this._io.readU2le();
+    }
+
+    /**
+     * ipv6 address, or ipv6-mapped ipv4 address.
+     */
+
+    /**
+     * Port number. Default port is 7075.
+     */
+
+    return Peer;
+  })();
+
+  /**
+   * Deprecated. The server will respond with a single enum_blocktype::not_a_block byte.
+   */
+
+  var MsgBulkPullBlocks = Nano.MsgBulkPullBlocks = (function() {
+    function MsgBulkPullBlocks(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgBulkPullBlocks.prototype._read = function() {
+      this.blockType = this._io.readU1();
+    }
+
+    return MsgBulkPullBlocks;
+  })();
+
+  var BlockOpen = Nano.BlockOpen = (function() {
+    function BlockOpen(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    BlockOpen.prototype._read = function() {
+      this.source = this._io.readBytes(32);
+      this.representative = this._io.readBytes(32);
+      this.account = this._io.readBytes(32);
+      this.signature = this._io.readBytes(64);
+      this.work = this._io.readU8le();
+    }
+
+    /**
+     * Hash of the source block
+     */
+
+    /**
+     * Public key of initial representative account
+     */
+
+    /**
+     * Public key of account being opened
+     */
+
+    /**
+     * ed25519 signature
+     */
+
+    /**
+     * Proof of work
+     */
+
+    return BlockOpen;
+  })();
+
+  var IgnoreUntilEof = Nano.IgnoreUntilEof = (function() {
+    function IgnoreUntilEof(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    IgnoreUntilEof.prototype._read = function() {
+      if (!(this._io.isEof())) {
+        this.empty = []
+        var i = 0;
+        do {
+          var _ = this._io.readU1();
+          this.empty.push(_);
+          i++;
+        } while (!(this._io.isEof()));
+      }
+    }
+
+    return IgnoreUntilEof;
+  })();
+
+  /**
+   * Signed confirmation of a block or a list of block hashes
+   */
+
+  var MsgConfirmAck = Nano.MsgConfirmAck = (function() {
+    function MsgConfirmAck(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgConfirmAck.prototype._read = function() {
+      this.common = new VoteCommon(this._io, this, this._root);
+      if (this._root.header.blockType == Nano.EnumBlocktype.NOT_A_BLOCK) {
+        this.votebyhash = new VoteByHash(this._io, this, this._root);
+      }
+      if (this._root.header.blockType != Nano.EnumBlocktype.NOT_A_BLOCK) {
+        this.block = new BlockSelector(this._io, this, this._root, this._root.header.blockTypeInt);
+      }
+    }
+
+    return MsgConfirmAck;
+  })();
+
+  /**
+   * A node ID handshake request and/or response.
+   */
+
+  var MsgNodeIdHandshake = Nano.MsgNodeIdHandshake = (function() {
+    function MsgNodeIdHandshake(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgNodeIdHandshake.prototype._read = function() {
+      if (this._root.header.queryFlag == 1) {
+        this.query = new NodeIdQuery(this._io, this, this._root);
+      }
+      if (this._root.header.responseFlag == 1) {
+        this.response = new NodeIdResponse(this._io, this, this._root);
+      }
+    }
+
+    return MsgNodeIdHandshake;
+  })();
+
+  /**
+   * Request frontiers (account chain head blocks) from a remote node
+   */
+
+  var MsgFrontierReq = Nano.MsgFrontierReq = (function() {
+    function MsgFrontierReq(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgFrontierReq.prototype._read = function() {
+      this.start = this._io.readBytes(32);
+      this.age = this._io.readU4le();
+      this.count = this._io.readU4le();
+    }
+
+    /**
+     * Public key of start account
+     */
+
+    /**
+     * Maximum age of included account. If 0xffffffff, turn off age filtering.
+     */
+
+    /**
+     * Maximum number of accounts to include. If 0xffffffff, turn off count limiting.
+     */
+
+    return MsgFrontierReq;
+  })();
+
+  /**
+   * Bulk push request.
+   */
+
+  var MsgBulkPush = Nano.MsgBulkPush = (function() {
+    function MsgBulkPush(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgBulkPush.prototype._read = function() {
+      this.entry = []
+      var i = 0;
+      do {
+        var _ = new BulkPushEntry(this._io, this, this._root);
+        this.entry.push(_);
+        i++;
+      } while (!( ((this._io.isEof()) || (this.entry[i].blockType == Nano.EnumBlocktype.NOT_A_BLOCK)) ));
+    }
+
+    var BulkPushEntry = MsgBulkPush.BulkPushEntry = (function() {
+      function BulkPushEntry(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      BulkPushEntry.prototype._read = function() {
+        this.blockType = this._io.readU1();
+        this.block = new BlockSelector(this._io, this, this._root, this.blockType);
+      }
+
+      return BulkPushEntry;
+    })();
+
+    return MsgBulkPush;
+  })();
+
+  var NodeIdResponse = Nano.NodeIdResponse = (function() {
+    function NodeIdResponse(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    NodeIdResponse.prototype._read = function() {
+      this.account = this._io.readBytes(32);
+      this.signature = this._io.readBytes(64);
+    }
+
+    /**
+     * Account
+     */
+
+    /**
+     * Signature
+     */
+
+    return NodeIdResponse;
+  })();
+
+  /**
+   * The msg_bulk_push request does not have a response.
+   */
+
+  var BulkPushResponse = Nano.BulkPushResponse = (function() {
+    function BulkPushResponse(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    BulkPushResponse.prototype._read = function() {
+    }
+
+    return BulkPushResponse;
+  })();
+
+  /**
+   * Response of the msg_bulk_pull request.
+   */
+
+  var BulkPullResponse = Nano.BulkPullResponse = (function() {
+    function BulkPullResponse(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    BulkPullResponse.prototype._read = function() {
+      this.entry = []
+      var i = 0;
+      do {
+        var _ = new BulkPullEntry(this._io, this, this._root);
+        this.entry.push(_);
+        i++;
+      } while (!( ((this._io.isEof()) || (this.entry[i].blockType == Nano.EnumBlocktype.NOT_A_BLOCK)) ));
+    }
+
+    var BulkPullEntry = BulkPullResponse.BulkPullEntry = (function() {
+      function BulkPullEntry(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      BulkPullEntry.prototype._read = function() {
+        this.blockType = this._io.readU1();
+        this.block = new BlockSelector(this._io, this, this._root, this.blockType);
+      }
+
+      return BulkPullEntry;
+    })();
+
+    return BulkPullResponse;
+  })();
+
+  /**
+   * Publish the given block
+   */
+
+  var MsgPublish = Nano.MsgPublish = (function() {
+    function MsgPublish(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgPublish.prototype._read = function() {
+      this.body = new BlockSelector(this._io, this, this._root, this._root.header.blockTypeInt);
+    }
+
+    return MsgPublish;
+  })();
+
+  /**
+   * State block
+   */
+
+  var BlockState = Nano.BlockState = (function() {
+    function BlockState(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    BlockState.prototype._read = function() {
+      this.account = this._io.readBytes(32);
+      this.previous = this._io.readBytes(32);
+      this.representative = this._io.readBytes(32);
+      this.balance = this._io.readBytes(16);
+      this.link = this._io.readBytes(32);
+      this.signature = this._io.readBytes(64);
+      this.work = this._io.readU8be();
+    }
+
+    /**
+     * Public key of account represented by this state block
+     */
+
+    /**
+     * Hash of previous block
+     */
+
+    /**
+     * Public key of the representative account
+     */
+
+    /**
+     * 128-bit big endian balance
+     */
+
+    /**
+     * Pairing send's block hash (open/receive), 0 (change) or destination public key (send)
+     */
+
+    /**
+     * ed25519 signature
+     */
+
+    /**
+     * Proof of work (big endian)
+     */
+
+    return BlockState;
+  })();
+
+  /**
+   * Response of the msg_bulk_pull_account message. The structure depends on the 
+   * flags that was passed to the query.
+   */
+
+  var BulkPullAccountResponse = Nano.BulkPullAccountResponse = (function() {
+    function BulkPullAccountResponse(_io, _parent, _root, flags) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+      this.flags = flags;
+
+      this._read();
+    }
+    BulkPullAccountResponse.prototype._read = function() {
+      this.entry = []
+      var i = 0;
+      do {
+        var _ = new BulkPullAccountEntry(this._io, this, this._root, this.flags);
+        this.entry.push(_);
+        i++;
+      } while (!( ((this._io.isEof()) || ((KaitaiStream.byteArrayCompare(this.entry[i].hash, this._root.constBlockZero) == 0))) ));
+    }
+
+    var BulkPullAccountEntry = BulkPullAccountResponse.BulkPullAccountEntry = (function() {
+      function BulkPullAccountEntry(_io, _parent, _root, flags) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+        this.flags = flags;
+
+        this._read();
+      }
+      BulkPullAccountEntry.prototype._read = function() {
+        if (!(this.pendingAddressOnly)) {
+          this.hash = this._io.readBytes(32);
+        }
+        if (!(this.pendingAddressOnly)) {
+          this.amount = this._io.readBytes(16);
+        }
+        if ( ((!(this.pendingAddressOnly)) || (this.pendingIncludeAddress)) ) {
+          this.source = this._io.readBytes(32);
+        }
+      }
+      Object.defineProperty(BulkPullAccountEntry.prototype, 'pendingAddressOnly', {
+        get: function() {
+          if (this._m_pendingAddressOnly !== undefined)
+            return this._m_pendingAddressOnly;
+          this._m_pendingAddressOnly = this.flags == Nano.EnumBulkPullAccount.PENDING_ADDRESS_ONLY;
+          return this._m_pendingAddressOnly;
+        }
+      });
+      Object.defineProperty(BulkPullAccountEntry.prototype, 'pendingIncludeAddress', {
+        get: function() {
+          if (this._m_pendingIncludeAddress !== undefined)
+            return this._m_pendingIncludeAddress;
+          this._m_pendingIncludeAddress = this.flags == Nano.EnumBulkPullAccount.PENDING_HASH_AMOUNT_AND_ADDRESS;
+          return this._m_pendingIncludeAddress;
+        }
+      });
+
+      return BulkPullAccountEntry;
+    })();
+
+    return BulkPullAccountResponse;
+  })();
+
+  /**
+   * A list of 8 peers, some of which may be all-zero.
+   */
+
+  var MsgKeepalive = Nano.MsgKeepalive = (function() {
+    function MsgKeepalive(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgKeepalive.prototype._read = function() {
+      if (!(this._io.isEof())) {
+        this.peers = []
+        var i = 0;
+        do {
+          var _ = new Peer(this._io, this, this._root);
+          this.peers.push(_);
+          i++;
+        } while (!( ((i == 8) || (this._io.isEof())) ));
+      }
+    }
+
+    return MsgKeepalive;
+  })();
+
+  /**
+   * Requests confirmation of the given block
+   */
+
+  var MsgConfirmReq = Nano.MsgConfirmReq = (function() {
+    function MsgConfirmReq(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgConfirmReq.prototype._read = function() {
+      this.body = new BlockSelector(this._io, this, this._root, this._root.header.blockTypeInt);
+    }
+
+    return MsgConfirmReq;
+  })();
+
+  /**
+   * Bulk pull account request.
+   */
+
+  var MsgBulkPullAccount = Nano.MsgBulkPullAccount = (function() {
+    function MsgBulkPullAccount(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgBulkPullAccount.prototype._read = function() {
+      this.account = this._io.readBytes(32);
+      this.minimumAmount = this._io.readBytes(16);
+      this.flags = this._io.readU1();
+    }
+
+    /**
+     * Account public key.
+     */
+
+    /**
+     * 128-bit big endian minimum amount.
+     */
+
+    return MsgBulkPullAccount;
+  })();
+
+  /**
+   * A sequence of up to 12 hashes, terminated by EOF.
+   */
+
+  var VoteByHash = Nano.VoteByHash = (function() {
+    function VoteByHash(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    VoteByHash.prototype._read = function() {
+      if (!(this._io.isEof())) {
+        this.hashes = []
+        var i = 0;
+        do {
+          var _ = this._io.readBytes(32);
+          this.hashes.push(_);
+          i++;
+        } while (!( ((i == 12) || (this._io.isEof())) ));
+      }
+    }
+
+    return VoteByHash;
+  })();
+
+  /**
+   * Common data shared by block votes and vote-by-hash votes
+   */
+
+  var VoteCommon = Nano.VoteCommon = (function() {
+    function VoteCommon(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    VoteCommon.prototype._read = function() {
+      this.account = this._io.readBytes(32);
+      this.signature = this._io.readBytes(64);
+      this.sequence = this._io.readU8le();
+    }
+
+    return VoteCommon;
+  })();
+
+  var MessageHeader = Nano.MessageHeader = (function() {
+    function MessageHeader(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MessageHeader.prototype._read = function() {
+      this.magic = this._io.ensureFixedContents([82]);
+      this.networkId = this._io.readU1();
+      this.versionMax = this._io.readU1();
+      this.versionUsing = this._io.readU1();
+      this.versionMin = this._io.readU1();
+      this.messageType = this._io.readU1();
+      this.extensions = this._io.readU2le();
+    }
+    Object.defineProperty(MessageHeader.prototype, 'blockTypeInt', {
+      get: function() {
+        if (this._m_blockTypeInt !== undefined)
+          return this._m_blockTypeInt;
+        this._m_blockTypeInt = ((this.extensions & 3840) >>> 8);
+        return this._m_blockTypeInt;
+      }
+    });
+
+    /**
+     * The block type determines what block is embedded in the message.
+     * For some message types, block type is not relevant and the block type
+     * is set to "invalid" or "not_a_block"
+     */
+    Object.defineProperty(MessageHeader.prototype, 'blockType', {
+      get: function() {
+        if (this._m_blockType !== undefined)
+          return this._m_blockType;
+        this._m_blockType = ((this.extensions & 3840) >>> 8);
+        return this._m_blockType;
+      }
+    });
+
+    /**
+     * If set, this is a node_id_handshake query. This maybe be set at the
+     * same time as the response_flag.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'queryFlag', {
+      get: function() {
+        if (this._m_queryFlag !== undefined)
+          return this._m_queryFlag;
+        this._m_queryFlag = (this.extensions & 1);
+        return this._m_queryFlag;
+      }
+    });
+
+    /**
+     * If set, this is a node_id_handshake response. This maybe be set at the
+     * same time as the query_flag.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'responseFlag', {
+      get: function() {
+        if (this._m_responseFlag !== undefined)
+          return this._m_responseFlag;
+        this._m_responseFlag = (this.extensions & 2);
+        return this._m_responseFlag;
+      }
+    });
+
+    /**
+     * Protocol identifier. Always 'R'.
+     */
+
+    /**
+     * Network ID 'A', 'B' or 'C' for test, beta or live network respectively.
+     */
+
+    /**
+     * Maximum version supported by the sending node
+     */
+
+    /**
+     * Version used by the sending node
+     */
+
+    /**
+     * Minimum version supported by the sending node
+     */
+
+    /**
+     * Message type
+     */
+
+    /**
+     * Extensions bitfield
+     */
+
+    return MessageHeader;
+  })();
+
+  /**
+   * Response of the msg_frontier_req TCP request. An all-zero account and frontier_hash signifies the end of the result.
+   */
+
+  var FrontierResponse = Nano.FrontierResponse = (function() {
+    function FrontierResponse(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    FrontierResponse.prototype._read = function() {
+      this.entry = []
+      var i = 0;
+      do {
+        var _ = new FrontierEntry(this._io, this, this._root);
+        this.entry.push(_);
+        i++;
+      } while (!( ((this._io.isEof()) || ((KaitaiStream.byteArrayCompare(this.entry[i].frontierHash, this._root.constBlockZero) == 0))) ));
+    }
+
+    var FrontierEntry = FrontierResponse.FrontierEntry = (function() {
+      function FrontierEntry(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      FrontierEntry.prototype._read = function() {
+        this.account = this._io.readBytes(32);
+        this.frontierHash = this._io.readBytes(32);
+      }
+
+      /**
+       * Public key of account.
+       */
+
+      /**
+       * Hash of the head block of the account chain.
+       */
+
+      return FrontierEntry;
+    })();
+
+    return FrontierResponse;
+  })();
+  Object.defineProperty(Nano.prototype, 'constBlockZero', {
+    get: function() {
+      if (this._m_constBlockZero !== undefined)
+        return this._m_constBlockZero;
+      this._m_constBlockZero = this._io.ensureFixedContents([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      return this._m_constBlockZero;
+    }
+  });
+
+  /**
+   * Message header with message type, version information and message-specific extension bits.
+   */
+
+  /**
+   * Message body whose content depends on block type in the header.
+   */
+
+  return Nano;
+})();
+return Nano;
+}));
