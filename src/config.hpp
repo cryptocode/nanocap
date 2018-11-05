@@ -18,7 +18,7 @@ namespace nanocap
 		/** If set, use a Berkeley Packet Filter expression instead of a filter based on the port config entry. */
 		std::string filter {""};
 		/** Maximum estimated database size in MB, by default 4GB. Live capture or pcap import is aborted if necessary. */
-		int max_capture_megabytes {4096};
+		int64_t max_capture_megabytes {4096};
 		/** If true, save block details. If false, save only block type. */
 		bool block_details {false};
 	};

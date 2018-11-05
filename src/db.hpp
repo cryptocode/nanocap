@@ -27,6 +27,9 @@ namespace nanocap
 		std::error_code put(nano::protocol::nano_t::msg_confirm_ack_t& msg, udp_packet& info);
 		std::error_code put(nano::protocol::nano_t::msg_confirm_req_t& msg, udp_packet& info);
 		std::error_code put(nano::protocol::nano_t::msg_publish_t& msg, udp_packet& info);
+		std::error_code put(nano::protocol::nano_t::msg_node_id_handshake_t& msg, udp_packet& info);
+
+		/** Arbitrary query returned as json, including (real and synthentic) column names */
 		json query(std::string query);
 		
 		int64_t count_packets();
@@ -44,6 +47,11 @@ namespace nanocap
 		 */
 		std::string get_schema_json();
 		
+		/**
+		 * Remove all captured data
+		 */
+		std::error_code destroy_capture_data();
+
 		/**
 		 * Flush data to database
 		 */
@@ -70,7 +78,7 @@ namespace nanocap
 				primary_tx = std::make_unique<SQLite::Transaction> (*sqlite);
 				
 				int64_t size = sqlite->execAndGet("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()").getInt64();
-				if (size > app.get_config().capture.max_capture_megabytes * 1024 * 1024)
+				if (size > app.get_config().capture.max_capture_megabytes * 1024LL * 1024LL)
 				{
 					max_reached = true;
 				}
@@ -82,6 +90,7 @@ namespace nanocap
 			stmt->bind(":hdr_version_using", msg._parent()->header()->version_using());
 			stmt->bind(":hdr_version_min", msg._parent()->header()->version_min());
 			stmt->bind(":hdr_block_type", static_cast<int>(msg._parent()->header()->block_type()));
+			stmt->bind(":hdr_extensions", static_cast<int>(msg._parent()->header()->extensions()));
 			return ec;
 		}
 		
@@ -93,6 +102,7 @@ namespace nanocap
 			stmt->bind(":dstip", info.dst_ip);
 			stmt->bind(":dstport", info.dst_port);
 			stmt->bind(":time", info.timestamp);
+			stmt->bind(":time_usec", info.timestamp_usec);
 			stmt->bind(":ipv", info.ip_version);
 			return ec;
 		}
@@ -105,6 +115,7 @@ namespace nanocap
 		std::unique_ptr<SQLite::Statement> stmt_block_receive;
 		std::unique_ptr<SQLite::Statement> stmt_block_open;
 		std::unique_ptr<SQLite::Statement> stmt_block_change;
+		std::unique_ptr<SQLite::Statement> stmt_vbh_hashes;
 		std::unique_ptr<SQLite::Statement> stmt_host;
 		std::unique_ptr<SQLite::Statement> stmt_packet_per_msg_type;
 		

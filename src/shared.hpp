@@ -14,6 +14,8 @@ namespace nanocap
 		uint16_t dst_port;
 		/** Seconds since unix epoch */
 		time_t timestamp;
+		/** Microseconds */
+		long timestamp_usec {0};
 		/** IP version (4 or 6) */
 		uint8_t ip_version;
 	};

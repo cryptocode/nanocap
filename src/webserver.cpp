@@ -92,6 +92,12 @@ void nanocap::webserver::start()
 			response->write("{}");
 		}
 	};
+	
+	server.resource["^/api/v1/capture/destroy$"]["GET"] = [this](std::shared_ptr<HttpServer::Response> response, std::shared_ptr<HttpServer::Request> request)
+	{
+		app.get_db().destroy_capture_data();
+		response->write("{}");
+	};
 
 	server.resource["^/api/v1/count/packet$"]["GET"] = [this](std::shared_ptr<HttpServer::Response> response, std::shared_ptr<HttpServer::Request> request)
 	{

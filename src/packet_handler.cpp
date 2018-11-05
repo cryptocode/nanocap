@@ -108,7 +108,7 @@ void nanocap::packet_handler::start_capture()
 	dev = pcpp::PcapLiveDeviceList::getInstance().getPcapLiveDeviceByIp(app.get_config().capture.device_ip.c_str());
 	if (dev == NULL)
 	{
-		std::cerr << "Could not find interface with IP address: " << app.get_config().capture.device_ip << std::endl;
+		std::cerr << termcolor::red << "ERROR: " << termcolor::reset << termcolor::bold << "Could not find interface with IP address: " << app.get_config().capture.device_ip << ". Please update nanocap.config." << termcolor::reset << std::endl;
 		std::exit(1);
 	}
 	else if (!dev->open())
@@ -184,6 +184,7 @@ void nanocap::packet_handler::handle_udp(pcpp::Packet& packet)
 		info.dst_port = boost::endian::big_to_native(udp->getUdpHeader()->portDst);
 		info.src_port = boost::endian::big_to_native(udp->getUdpHeader()->portSrc);
 		info.timestamp = packet.getRawPacketReadOnly()->getPacketTimeStamp().tv_sec;
+		info.timestamp_usec = packet.getRawPacketReadOnly()->getPacketTimeStamp().tv_usec;
 
 		auto data = packet.getLastLayer()->getData();
 		auto len = packet.getLastLayer()->getDataLen();
@@ -226,6 +227,11 @@ void nanocap::packet_handler::handle_udp(pcpp::Packet& packet)
 				this->handle_message (*msg, info);
 				break;
 			}
+			case nano::protocol::nano_t::ENUM_MSGTYPE_NODE_ID_HANDSHAKE: {
+				nano::protocol::nano_t::msg_node_id_handshake_t* msg = static_cast<nano::protocol::nano_t::msg_node_id_handshake_t*> (proto.body ());
+				this->handle_message (*msg, info);
+				break;
+			}
 			case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL: {
 				
 				break;
@@ -239,10 +245,6 @@ void nanocap::packet_handler::handle_udp(pcpp::Packet& packet)
 				break;
 			}
 			case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL_BLOCKS: {
-				
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_NODE_ID_HANDSHAKE: {
 				
 				break;
 			}
@@ -278,6 +280,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_confir
 }
 
 void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_publish_t & msg, nanocap::udp_packet& info)
+{
+	app.get_db().put(msg, info);
+}
+
+void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_node_id_handshake_t & msg, nanocap::udp_packet& info)
 {
 	app.get_db().put(msg, info);
 }

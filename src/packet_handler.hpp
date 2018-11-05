@@ -34,6 +34,7 @@ namespace nanocap
 		void handle_message (nano::protocol::nano_t::msg_confirm_ack_t & msg, udp_packet& info);
 		void handle_message (nano::protocol::nano_t::msg_confirm_req_t & msg, udp_packet& info);
 		void handle_message (nano::protocol::nano_t::msg_publish_t & msg, udp_packet& info);
+		void handle_message (nano::protocol::nano_t::msg_node_id_handshake_t & msg, udp_packet& info);
 
 		inline pcpp::PcapLiveDevice* get_device() { return dev; }
 		inline bool is_live_capturing () const { return capturing; };
