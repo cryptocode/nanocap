@@ -11,7 +11,9 @@ Raison d'être:
 
 # Build
 
-nanocap uses the Conan package manager. See docs.conan.io/en/latest/installation.html for information on how to install Conan.
+nanocap uses the Conan package manager. See https://docs.conan.io/en/latest/installation.html for information on how to install Conan.
+
+The easy way is `pip install conan`
 
 Add the following Conan repositories for Boost and pcap++:
 
@@ -20,22 +22,45 @@ $ conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-
 $ conan remote add andreybronin https://api.bintray.com/conan/andreybronin/conan
 ```
 
-Download and build everything needed:
+To download and build everything needed:
 
 ```
 $ conan install . --build missing
 ```
 
-Generate build file
+To generate the build file:
 
 ```
 $ cmake . -G <generator>
 ```
 
-## Optional build flags
+### Optional build flags
 
 The nanocap repository contains pre-generated protocol parsers.
 
 If `NANOCAP_GENERATE_PARSER` is set in CMake, C++ and Javascript parsers are automatically regenerated.
 
 For this to work, kaitai-struct-compiler must be installed. In addition, the Kaitai protocol definition file must be located under `protocol/reference`. This is best done by adding the nanocurrency/protocol repository as a submodule.
+
+
+# Configuration
+
+See `nanocap.config` for configuration. In particular, the IP used for capturing should be set. `nanocap --if` gives you a list of network interfaces and the associated IP.
+
+The `block_details` adds hashes and block details to the database. This increases pcap import times.
+
+# Importing pcap files
+
+`nanocap --pcap my.pcap`
+
+Progress is available in the web console. Live capture can be started once the import is finished.
+
+# Live capture
+
+`nanocap`
+
+# Web console
+
+During import or live capture, progress can be watched at http://localhost:7077, which also provides a query interface.
+
+## REST API
