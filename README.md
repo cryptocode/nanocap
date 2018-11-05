@@ -6,7 +6,7 @@ Raison d'être:
 
 * Validate that the protocol specification is correct
 * The Nano protocol is evolving quickly and nanocap will be kept up to date as new relases of the protocol is made.
-* Provide an alternative to Wireshark and bettercap with query capabilities helpfor for diagnosing issues on the Nano network.
+* Provide an alternative to Wireshark and bettercap with query capabilities for diagnosing issues on the Nano network.
 
 
 # Build
