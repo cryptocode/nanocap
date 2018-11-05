@@ -3,6 +3,10 @@ AC_DEFUN([NANOCAP_FIND_BOOST], [
 	AX_BOOST_BASE(1.60,, [
 		AC_MSG_ERROR([Need Boost 1.60 or greater])
 	])
+	AX_BOOST_ASIO
+	AX_BOOST_IOSTREAMS
+	AX_BOOST_FILESYSTEM
+	AX_BOOST_PROGRAM_OPTIONS
 ])
 
 dnl app.cpp:#include <boost/asio.hpp>
