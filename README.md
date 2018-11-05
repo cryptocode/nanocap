@@ -51,16 +51,56 @@ The `block_details` adds hashes and block details to the database. This increase
 
 # Importing pcap files
 
-`nanocap --pcap my.pcap`
+Run `nanocap --pcap my.pcap`
 
 Progress is available in the web console. Live capture can be started once the import is finished.
 
 # Live capture
 
-`nanocap`
+Run `nanocap`
 
 # Web console
 
 During import or live capture, progress can be watched at http://localhost:7077, which also provides a query interface.
 
 ## REST API
+
+Documentation in progress...
+
+```
+GET api/v1/status
+```
+
+```
+GET api/v1/schema
+```
+
+```
+GET api/v1/capture/query?query=<SQL>
+```
+
+```
+GET api/v1/capture/start
+```
+
+```
+GET api/v1/capture/stop
+```
+
+```
+GET api/v1/capture/toggle
+```
+
+```
+GET api/v1/capture/destroy
+```
+
+```
+GET api/v1/count/packet
+```
+
+```
+GET api/v1/count/per-type
+```
+
+
