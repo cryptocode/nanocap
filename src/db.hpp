@@ -1,7 +1,10 @@
 #pragma once
-#include <nano.h>
+
+#include <atomic>
 #include <string>
 #include <mutex>
+#include <nano.h>
+#include <shared.hpp>
 #include <config.hpp>
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <nlohmann/json.hpp>
@@ -11,6 +14,7 @@ using json = nlohmann::json;
 namespace nanocap
 {
 	class app;
+	struct udp_packet;
 
 	/** Manages the capture database */
 	class db
@@ -18,14 +22,17 @@ namespace nanocap
 	public:
 		db(nanocap::app& app);
 		~db();
-				
-		std::error_code put(nano::protocol::nano_t::msg_keepalive_t& msg);
-		std::error_code put(nano::protocol::nano_t::msg_confirm_ack_t& msg);
-		std::error_code put(nano::protocol::nano_t::msg_confirm_req_t& msg);
 		
-		// TODO:
+		std::error_code put(nano::protocol::nano_t::msg_keepalive_t& msg, udp_packet& info);
+		std::error_code put(nano::protocol::nano_t::msg_confirm_ack_t& msg, udp_packet& info);
+		std::error_code put(nano::protocol::nano_t::msg_confirm_req_t& msg, udp_packet& info);
+		std::error_code put(nano::protocol::nano_t::msg_publish_t& msg, udp_packet& info);
+		json query(std::string query);
 		
 		int64_t count_packets();
+
+		/** Returns a json string containing packet count per message type [{count: number, msg_type: number}, ...] */
+		std::string count_packets_per_type();
 		
 		/**
 		 * Returns the database schema as a json object
@@ -41,6 +48,9 @@ namespace nanocap
 		 * Flush data to database
 		 */
 		std::error_code flush();
+		
+		/** If true, the maximum db size is reached */
+		std::atomic_bool max_reached {false};
 
 	private:
 		std::unique_ptr<SQLite::Transaction> primary_tx;
@@ -50,21 +60,39 @@ namespace nanocap
 		 * @note This must be called under a \db_mutex lock.
 		 */
 		template <typename T>
-		inline std::error_code set_header(SQLite::Statement* stmt, T&& msg, int64_t id)
+		inline std::error_code bind_header_fields(SQLite::Statement* stmt, T&& msg, int64_t id)
 		{
+			// Periodically commit and check db size against maximum
 			if (next_id % 10000 == 0)
 			{
 				primary_tx->commit();
 				primary_tx = std::make_unique<SQLite::Transaction> (*sqlite);
+				
+				int64_t size = sqlite->execAndGet("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()").getInt64();
+				if (size > app.get_config().capture.max_capture_megabytes * 1024 * 1024)
+				{
+					max_reached = true;
+				}
 			}
-			// TODO: set synthetic inbound vs. outbound flag
+
 			std::error_code ec;
 			stmt->bind(":id", id);
 			stmt->bind(":hdr_msg_type", msg._parent()->header()->message_type());
 			stmt->bind(":hdr_version_using", msg._parent()->header()->version_using());
 			stmt->bind(":hdr_version_min", msg._parent()->header()->version_min());
 			stmt->bind(":hdr_block_type", static_cast<int>(msg._parent()->header()->block_type()));
-			
+			return ec;
+		}
+		
+		inline std::error_code bind_udp_fields(SQLite::Statement* stmt, nanocap::udp_packet& info)
+		{
+			std::error_code ec;
+			stmt->bind(":srcip", info.src_ip);
+			stmt->bind(":srcport", info.src_port);
+			stmt->bind(":dstip", info.dst_ip);
+			stmt->bind(":dstport", info.dst_port);
+			stmt->bind(":time", info.timestamp);
+			stmt->bind(":ipv", info.ip_version);
 			return ec;
 		}
 
@@ -73,6 +101,7 @@ namespace nanocap
 		std::unique_ptr<SQLite::Statement> stmt_packet;
 		std::unique_ptr<SQLite::Statement> stmt_block_state;
 		std::unique_ptr<SQLite::Statement> stmt_host;
+		std::unique_ptr<SQLite::Statement> stmt_packet_per_msg_type;
 		
 		/** Next ID for sqlite insert (note that sqlite3 only supports signed integers */
 		std::atomic_int64_t next_id {0};

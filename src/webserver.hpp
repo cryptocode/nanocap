@@ -15,6 +15,11 @@ namespace nanocap
 	public:
 		webserver(nanocap::app& app);
 		~webserver();
+		/** Hosted web page URL */
+		std::string get_static_url();
+		/** REST API URL*/
+		std::string get_api_url();
+
 	private:
 		nanocap::app& app;
 		HttpServer server;

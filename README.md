@@ -31,3 +31,11 @@ Generate build file
 ```
 $ cmake . -G <generator>
 ```
+
+## Optional build flags
+
+The nanocap repository contains pre-generated protocol parsers.
+
+If `NANOCAP_GENERATE_PARSER` is set in CMake, C++ and Javascript parsers are automatically regenerated.
+
+For this to work, kaitai-struct-compiler must be installed. In addition, the Kaitai protocol definition file must be located under `protocol/reference`. This is best done by adding the nanocurrency/protocol repository as a submodule.

@@ -26,15 +26,22 @@ include_directories (${CMAKE_BINARY_DIR}/src)
 include_directories (${Boost_INCLUDE_DIRS})
 
 # Regenerate parser. The nanocurrency/protocol repository must be
-# added as a submodule for this to work.
+# added as a submodule when this flag is active.
 if (NANOCAP_GENERATE_PARSER)
+
 	execute_process (
 		COMMAND
 		"kaitai-struct-compiler" "${CMAKE_BINARY_DIR}/protocol/reference/protocol.ksy" "--cpp-namespace" "nano::protocol" "--outdir" "${CMAKE_BINARY_DIR}/src" "-t" "cpp_stl"
 		ERROR_FILE "${CMAKE_BINARY_DIR}/gen.err"
 		WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
 	)
-	message ("GENERATED PARSER")
+
+	execute_process (
+		COMMAND
+		"kaitai-struct-compiler" "${CMAKE_BINARY_DIR}/protocol/reference/protocol.ksy" "--outdir" "${CMAKE_BINARY_DIR}/public" "-t" "javascript"
+		ERROR_FILE "${CMAKE_BINARY_DIR}/gen.err"
+		WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+	)
 endif ()
 
 #add_executable(reassembly src/reassembly/main.cpp)
@@ -50,12 +57,15 @@ add_library(sqlitecpp
 	src/SQLiteCpp/Statement.h src/SQLiteCpp/Statement.cpp src/SQLiteCpp/Transaction.h src/SQLiteCpp/Transaction.cpp src/SQLiteCpp/Utils.h src/SQLiteCpp/VariadicBind.h)
 
 add_executable(nanocap
+	src/shared.hpp
 	src/db.hpp src/db.cpp src/packet_handler.hpp src/packet_handler.cpp src/config.hpp
 	src/app.hpp src/app.cpp
 	src/webserver.hpp src/webserver.cpp
-	src/nano.cpp src/nano.h src/kaitai/kaitaistream.cpp)
+	src/nano.cpp src/nano.h src/kaitai/kaitaistream.cpp
+	src/util/ctpl_stl.h src/util/termcolor.hpp
+	)
 
-target_link_libraries(nanocap ${CMAKE_DL_LIBS} sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus)
+target_link_libraries(nanocap ${CMAKE_DL_LIBS} sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus)
 
 if (APPLE)
 	target_link_libraries(nanocap "-framework CoreFoundation")

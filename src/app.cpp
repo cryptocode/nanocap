@@ -1,15 +1,9 @@
-#include "stdlib.h"
-#include "UdpLayer.h"
-#include "TcpLayer.h"
-#include "IPv4Layer.h"
-#include "IPv6Layer.h"
-#include "PcapLiveDeviceList.h"
-#include "PlatformSpecificUtils.h"
 #include <nano.h>
 #include <app.hpp>
 #include <webserver.hpp>
 #include <db.hpp>
 #include <packet_handler.hpp>
+#include <util/termcolor.hpp>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -21,7 +15,7 @@ static nanocap::app application;
 
 nanocap::app::app()
 {
-	std::cout << "nanocap " << app::VERSION << std::endl;
+	std::cout << termcolor::bold << "nanocap " << app::VERSION << termcolor::reset << std::endl;
 	std::cout << "Supported protocol version: " << nano::protocol::nano_t::PROTOCOL_VERSION_VALUE << std::endl;
 }
 
@@ -33,9 +27,11 @@ void nanocap::app::launch(int argc, char** argv)
 {
 	try
 	{
+		std::string pcap_src = "";
 		boost::program_options::options_description desc("Options");
 		desc.add_options()
 		("help", "Print help messages")
+		("pcap", boost::program_options::value(&pcap_src), "Populate database using this pcap file")
 		("if", "List interfaces and ip addresses");
 		
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), option_map);
@@ -47,13 +43,13 @@ void nanocap::app::launch(int argc, char** argv)
 		}
 		
 		config = nanocap::load_config ("nanocap.config");
-		config.record = false;
-		nanocap::save_config ("nanocap.config", config);
 		db = std::make_unique<nanocap::db>(*this);
 		handler = std::make_unique<nanocap::packet_handler>(*this);
 		
-		// TODO: only create if configured
-		webserver = std::make_unique<nanocap::webserver>(*this);
+		if (config.web.enabled)
+		{
+			webserver = std::make_unique<nanocap::webserver>(*this);
+		}
 	}
 	catch(boost::program_options::error& e)
 	{
@@ -63,9 +59,10 @@ void nanocap::app::launch(int argc, char** argv)
 
 void sig_handler(const boost::system::error_code& error, int signal_number)
 {
-	std::cout << "Stopping capture due to signal " << signal_number << ". Please wait..." << std::endl;
+	std::cout << "Stopping due to signal " << signal_number << ". Please wait..." << std::endl;
 	application.get_handler().stop_capture();
 	application.get_handler().print_stats(std::cout);
+	std::exit(0);
 }
 
 /**
@@ -79,14 +76,38 @@ int main(int argc, char* argv[])
 	{
 		application.launch(argc, argv);
 		auto& handler = application.get_handler();
-		handler.start_capture();
 		
-		std::cout << "Press ctrl-c to stop" << std::endl;
-	
-		//PCAP_SLEEP(60);
-		boost::asio::signal_set signals(io_ctx, SIGINT);
-		signals.async_wait(sig_handler);
-		io_ctx.run();
+		if (application.get_config().web.enabled)
+		{
+			std::cout << termcolor::bold << "Console available at:" << termcolor::reset << std::endl;
+			std::cout << "    " << application.get_webserver().get_static_url() << std::endl;
+			std::cout << termcolor::bold << "API available at:" << termcolor::reset << std::endl;
+			std::cout << "    " << application.get_webserver().get_api_url() << std::endl;
+		}
+
+		if (application.get_options().count("pcap"))
+		{
+			std::string pcap_file = application.get_options()["pcap"].as<std::string>();
+			handler.analyze_pcap_file(pcap_file);
+		}
+		else if (application.get_options().count("if"))
+		{
+			handler.print_devices();
+			std::exit(0);
+		}
+		else
+		{
+			handler.start_capture();
+		}
+
+		if (application.get_config().web.enabled || application.get_config().capture.enabled)
+		{
+			std::cout << termcolor::bold << "Press ctrl-c to stop" << termcolor::reset << std::endl;
+
+			boost::asio::signal_set signals(io_ctx, SIGINT);
+			signals.async_wait(sig_handler);
+			io_ctx.run();
+		}
 	}
 	catch (std::runtime_error & err)
 	{
