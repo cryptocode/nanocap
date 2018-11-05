@@ -63,7 +63,39 @@ Run `nanocap`
 
 During import or live capture, progress can be watched at http://localhost:7077, which also provides a query interface.
 
-## REST API
+## Queries
+
+The database table definition is provided under the *Schema* page.
+
+Querying can be done via the sqlite3 client or the web interface. Examples:
+
+Packet count by type
+
+```
+select count(*), msg_type from packet group by msg_type;
+```
+
+Handshake messages with the response flag set:
+
+```
+select * from packet where msg_type = 0x0a and dstip = '31.171.251.175' and srcport != 7075 and extensions & 2
+```
+
+How many vote-by-hash messages references a given block hash?
+
+```
+select count(*) from vote_by_hash where hashes like '%8EB3B7%'
+```
+
+What packets references the given open block? Note that these queries can be slow on large captures. Consider adding indices.
+
+```
+select P.* from block_open O
+inner join packet P on P.id = O.packet_id
+where O.hash = '09A295011083890BDDCE5C3C11E087F896F50F5AD0FDA02A2C12D6D5989AE281'
+```
+
+# REST API
 
 Documentation in progress...
 
