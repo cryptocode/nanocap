@@ -1,5 +1,6 @@
 #include <util/nanoutil.hpp>
 #include <blake2.h>
+#include <assert.h>
 
 std::string nanocap::hash_of(nano::protocol::nano_t::block_state_t* block)
 {
