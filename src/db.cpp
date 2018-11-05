@@ -1,22 +1,20 @@
+#include <iostream>
 #include <app.hpp>
 #include <db.hpp>
 #include <packet_handler.hpp>
-#include <iostream>
+#include <util/hex.hpp>
+#include <util/nanoutil.hpp>
 #include <boost/asio.hpp>
 #include <boost/endian/conversion.hpp>
 #include <sqlite3.h>
 
 nanocap::db::db(nanocap::app & app) : app (app)
 {
-	std::cout << "Opening database: " << app.get_config().db << std::endl;
+	std::cout << "Using database " << app.get_config().db << " (sqlite version " << SQLite::getLibVersion() << ")" << std::endl << std::endl;
 	sqlite = std::make_unique<SQLite::Database> (app.get_config().db, SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE);
-	std::cout << "Using sqlite3 " << SQLite::getLibVersion() << std::endl;
-	
-	//sqlite->exec("DROP TABLE IF EXISTS packet");
-	//sqlite->exec("DROP TABLE IF EXISTS host");
-	
+
+	// Fast journal mode at the cost of risking corruption on OS crash/power outage.
 	sqlite->exec("PRAGMA journal_mode = WAL");
-	//sqlite->exec("PRAGMA synchronous = OFF");
 
 	// Maintaining an atomic int initialized at startup from a dispenser table is much faster than autoincrement.
 	sqlite->exec("CREATE TABLE IF NOT EXISTS runs (id_multiplier INTEGER PRIMARY KEY AUTOINCREMENT, time TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
@@ -25,7 +23,6 @@ nanocap::db::db(nanocap::app & app) : app (app)
 				 "CREATE TABLE IF NOT EXISTS packet "
 				 "("
 				 	"id INTEGER NOT NULL, ipv INTEGER NOT NULL, msg_type INTEGER NOT NULL, version_using INTEGER, version_min INTEGER, block_type INTEGER, "
-				 	"block_id TEXT DEFAULT NULL, "
 				 	"srcip TEXT DEFAULT NULL, srcport INTEGER DEFAULT NULL, dstip TEXT DEFAULT NULL, dstport INTEGER DEFAULT NULL, "
 				 	"time TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
 				 ")"
@@ -33,34 +30,74 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	
 	// Ensure packet-by-type queries are fast
 	sqlite->exec("CREATE INDEX IF NOT EXISTS idx_msg_type ON packet (msg_type)");
-	
-	// TODO: add detected version
+
+	// Hosts enlisted in a keepalive packet
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS keepalive_host "
-				 "(id INTEGER NOT NULL, keepalive_id INTEGER, address TEXT NOT NULL, port INTEGER NOT NULL, time TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+				 "(id INTEGER NOT NULL, packet_id INTEGER, address TEXT NOT NULL, port INTEGER NOT NULL, time TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
 				 );
 	
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS block_state"
 				 "( "
-				 	"id INTEGER NOT NULL, time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
-				 	"account BLOB, previous BLOB, representative BLOB, balance BLOB, link BLOB, signature BLOB, work INTEGER"
+				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"hash TEXT, account TEXT, previous TEXT, representative TEXT, balance TEXT, link TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 ")"
+				 );
+	
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS block_send"
+				 "( "
+				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"hash TEXT, previous TEXT, destination TEXT, balance TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 ")"
+				 );
+	
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS block_receive"
+				 "( "
+				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"hash TEXT, previous TEXT, source TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 ")"
+				 );
+	
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS block_open"
+				 "( "
+				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"hash TEXT, source TEXT, representative TEXT, account TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 ")"
+				 );
+	
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS block_change"
+				 "( "
+				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"hash TEXT, previous TEXT, representative TEXT, signature TEXT, work UNSIGNED BIG INT"
 				 ")"
 				 );
 				 
 	// Insert a new run. This increments the id multiplier.
 	assert (sqlite->exec("INSERT INTO runs DEFAULT VALUES") == 1);
+
 	// Each runs gives a budget of one billion id's.
 	next_id = 1'000'000'000 * sqlite->execAndGet("SELECT MAX(id_multiplier) FROM runs").getInt64();
 
 	stmt_packet = std::make_unique<SQLite::Statement>(*sqlite,
-													  "INSERT INTO packet VALUES (:id, :ipv, :hdr_msg_type, :hdr_version_using, :hdr_version_min, :hdr_block_type, :block_id, :srcip, :srcport, :dstip, :dstport, :time)");
+													  "INSERT INTO packet VALUES (:id, :ipv, :hdr_msg_type, :hdr_version_using, :hdr_version_min, :hdr_block_type, :srcip, :srcport, :dstip, :dstport, :time)");
 	stmt_block_state = std::make_unique<SQLite::Statement>(*sqlite,
-														   "INSERT INTO block_state VALUES (:id, :time, :account, :previous, :representative, :balance, :link, :signature, :work)");
-	
-	// Insert host. If seen before, update seen-count and timestamp.
+														   "INSERT INTO block_state VALUES (:id, :packet_id, :hash, :account, :previous, :representative, :balance, :link, :signature, :work)");
+	stmt_block_send = std::make_unique<SQLite::Statement>(*sqlite,
+														  "INSERT INTO block_send VALUES (:id, :packet_id, :hash, :previous, :destination, :balance, :signature, :work)");
+	stmt_block_receive = std::make_unique<SQLite::Statement>(*sqlite,
+														   "INSERT INTO block_receive VALUES (:id, :packet_id, :hash, :previous, :source, :signature, :work)");
+	stmt_block_open = std::make_unique<SQLite::Statement>(*sqlite,
+														   "INSERT INTO block_open VALUES (:id, :packet_id, :hash, :source, :representative, :account, :signature, :work)");
+	stmt_block_change = std::make_unique<SQLite::Statement>(*sqlite,
+														   "INSERT INTO block_change VALUES (:id, :packet_id, :hash, :previous, :representative, :signature, :work)");
+
 	stmt_host = std::make_unique<SQLite::Statement>(*sqlite,
-													"INSERT INTO keepalive_host VALUES (:id, :keepalive_id, :address, :port, CURRENT_TIMESTAMP)");
+													"INSERT INTO keepalive_host VALUES (:id, :packet_id, :address, :port, CURRENT_TIMESTAMP)");
 
 	stmt_packet_per_msg_type = std::make_unique<SQLite::Statement>(*sqlite,
 																   "SELECT COUNT(*), msg_type FROM packet GROUP BY msg_type");
@@ -149,11 +186,10 @@ json nanocap::db::query(std::string query)
 	try
 	{
 		SQLite::Statement stmt(*sqlite, query);
-		// TODO: config
-		int maxrows = 5000;
+		int max_rows = app.get_config().web.max_query_result;
 		
 		json rows = json::array();
-		for (int i=0; i < maxrows && stmt.executeStep(); i++)
+		for (int i=0; i < max_rows && stmt.executeStep(); i++)
 		{
 			if (i == 0)
 			{
@@ -193,7 +229,6 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_keepalive_t& msg, n
 
 	bind_header_fields(stmt_packet.get(), msg, id);
 	bind_udp_fields(stmt_packet.get(), info);
-	stmt_packet->bind(":block_id", nullptr);
 	
 	auto rows = stmt_packet->exec();
 	assert (rows == 1);
@@ -206,7 +241,7 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_keepalive_t& msg, n
 		boost::asio::ip::udp::endpoint endpoint (boost::asio::ip::address_v6 (*arr), peer->port ());
 		
 		stmt_host->bind(":id", next_id.fetch_add(1));
-		stmt_host->bind(":keepalive_id", id);
+		stmt_host->bind(":packet_id", id);
 		stmt_host->bind(":address", endpoint.address().to_string ());
 		stmt_host->bind(":port", peer->port());
 		stmt_host->exec();
@@ -221,23 +256,21 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_keepalive_t& msg, n
 std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg, nanocap::udp_packet& info)
 {
 	std::error_code ec;
-	int64_t id = next_id.fetch_add(1);
+	int64_t packet_id = next_id.fetch_add(1);
 	
 	std::lock_guard<std::mutex> guard (db_mutex);
 	
-	bind_header_fields(stmt_packet.get(), msg, id);
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
 	bind_udp_fields(stmt_packet.get(), info);
 	
 	// Regular vote
 	if (msg.block())
 	{
-		auto id = next_id.fetch_add(1);
-		stmt_packet->bind(":block_id", id);
+		put_block(msg.block(), packet_id);
 	}
 	// Vote-by-hash
 	else
 	{
-		stmt_packet->bind(":block_id", nullptr);
 	}
 
 	auto rows = stmt_packet->exec();
@@ -265,17 +298,105 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_req_t& msg,
 	return ec;
 }
 
+std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t* block_selector, int64_t packet_id)
+{
+	std::error_code ec;
+	if (app.get_config().capture.block_details && block_selector && block_selector->block())
+	{
+		switch (block_selector->arg_block_type())
+		{
+			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_STATE:
+			{
+				auto block = static_cast<nano::protocol::nano_t::block_state_t*>(block_selector->block());
+				stmt_block_state->bind(":id", next_id.fetch_add(1));
+				stmt_block_state->bind(":packet_id", packet_id);
+				stmt_block_state->bind(":hash", to_hex(hash_of(block)));
+				stmt_block_state->bind(":account", to_hex(block->account()));
+				stmt_block_state->bind(":previous", to_hex(block->previous()));
+				stmt_block_state->bind(":representative", to_hex(block->representative()));
+				stmt_block_state->bind(":link", to_hex(block->link()));
+				stmt_block_state->bind(":signature", to_hex(block->signature()));
+				stmt_block_state->bind(":work", static_cast<int64_t>(block->work()));
+				stmt_block_state->exec();
+				stmt_block_state->reset();
+				break;
+			}
+			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_SEND:
+			{
+				auto block = static_cast<nano::protocol::nano_t::block_send_t*>(block_selector->block());
+				stmt_block_send->bind(":id", next_id.fetch_add(1));
+				stmt_block_send->bind(":packet_id", packet_id);
+				stmt_block_send->bind(":hash", to_hex(hash_of(block)));
+				stmt_block_send->bind(":previous", to_hex(block->previous()));
+				stmt_block_send->bind(":destination", to_hex(block->destination()));
+				stmt_block_send->bind(":balance", to_hex(block->balance()));
+				stmt_block_send->bind(":signature", to_hex(block->signature()));
+				stmt_block_send->bind(":work", static_cast<int64_t>(block->work()));
+				stmt_block_send->exec();
+				stmt_block_send->reset();
+				break;
+			}
+			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_RECEIVE:
+			{
+				auto block = static_cast<nano::protocol::nano_t::block_receive_t*>(block_selector->block());
+				stmt_block_send->bind(":id", next_id.fetch_add(1));
+				stmt_block_send->bind(":packet_id", packet_id);
+				stmt_block_send->bind(":hash", to_hex(hash_of(block)));
+				stmt_block_send->bind(":previous", to_hex(block->previous()));
+				stmt_block_send->bind(":source", to_hex(block->source()));
+				stmt_block_send->bind(":signature", to_hex(block->signature()));
+				stmt_block_send->bind(":work", static_cast<int64_t>(block->work()));
+				stmt_block_send->exec();
+				stmt_block_send->reset();
+				break;
+			}
+			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_OPEN:
+			{
+				auto block = static_cast<nano::protocol::nano_t::block_open_t*>(block_selector->block());
+				stmt_block_send->bind(":id", next_id.fetch_add(1));
+				stmt_block_send->bind(":packet_id", packet_id);
+				stmt_block_send->bind(":hash", to_hex(hash_of(block)));
+				stmt_block_send->bind(":source", to_hex(block->source()));
+				stmt_block_send->bind(":representative", to_hex(block->representative()));
+				stmt_block_send->bind(":account", to_hex(block->account()));
+				stmt_block_send->bind(":signature", to_hex(block->signature()));
+				stmt_block_send->bind(":work", static_cast<int64_t>(block->work()));
+				stmt_block_send->exec();
+				stmt_block_send->reset();
+				break;
+			}
+			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_CHANGE:
+			{
+				auto block = static_cast<nano::protocol::nano_t::block_change_t*>(block_selector->block());
+				stmt_block_send->bind(":id", next_id.fetch_add(1));
+				stmt_block_send->bind(":packet_id", packet_id);
+				stmt_block_send->bind(":hash", to_hex(hash_of(block)));
+				stmt_block_send->bind(":previous", to_hex(block->previous()));
+				stmt_block_send->bind(":representative", to_hex(block->representative()));
+				stmt_block_send->bind(":signature", to_hex(block->signature()));
+				stmt_block_send->bind(":work", static_cast<int64_t>(block->work()));
+				stmt_block_send->exec();
+				stmt_block_send->reset();
+				break;
+			}
+		}
+	}
+	return ec;
+}
+
 std::error_code nanocap::db::put(nano::protocol::nano_t::msg_publish_t& msg, nanocap::udp_packet& info)
 {
 	std::error_code ec;
-	int64_t id = next_id.fetch_add(1);
+	int64_t packet_id = next_id.fetch_add(1);
 	
 	std::lock_guard<std::mutex> guard (db_mutex);
-	bind_header_fields(stmt_packet.get(), msg, id);
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
 	bind_udp_fields(stmt_packet.get(), info);
 	
 	auto rows = stmt_packet->exec();
 	assert (rows == 1);
+	
+	put_block(msg.body(), packet_id);
 	
 	// Prepare for next use
 	stmt_packet->reset();

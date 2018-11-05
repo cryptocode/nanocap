@@ -54,6 +54,7 @@ namespace nanocap
 
 	private:
 		std::unique_ptr<SQLite::Transaction> primary_tx;
+		std::error_code put_block(nano::protocol::nano_t::block_selector_t* block_selector, int64_t packet_id);
 		
 		/**
 		 * Set the header portion of the message. This is shared across message types.
@@ -100,6 +101,10 @@ namespace nanocap
 		std::unique_ptr<SQLite::Database> sqlite;
 		std::unique_ptr<SQLite::Statement> stmt_packet;
 		std::unique_ptr<SQLite::Statement> stmt_block_state;
+		std::unique_ptr<SQLite::Statement> stmt_block_send;
+		std::unique_ptr<SQLite::Statement> stmt_block_receive;
+		std::unique_ptr<SQLite::Statement> stmt_block_open;
+		std::unique_ptr<SQLite::Statement> stmt_block_change;
 		std::unique_ptr<SQLite::Statement> stmt_host;
 		std::unique_ptr<SQLite::Statement> stmt_packet_per_msg_type;
 		

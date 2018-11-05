@@ -47,6 +47,20 @@ endif ()
 #add_executable(reassembly src/reassembly/main.cpp)
 #target_link_libraries(reassembly ${CONAN_LIBS} ${Boost_LIBRARIES})
 
+# Blake2
+if(SSE STREQUAL "None")
+	file(GLOB_RECURSE blake2_sources
+		"src/blake2/ref/blake2*.h"
+		"src/blake2/ref/blake2*.c")
+	include_directories (src/blake2/ref)
+else()
+	file(GLOB_RECURSE blake2_sources
+		"src/blake2/sse/blake2*.h"
+		"src/blake2/sse/blake2*.c")
+	include_directories (src/blake2/sse)
+endif()
+add_library(blake2b ${blake2_sources})
+
 include_directories (src/sqlite)
 add_definitions(-DSQLITE_ENABLE_JSON1 -DSQLITE_THREADSAFE=0)
 add_library(sqlite src/sqlite/sqlite3.h src/sqlite/sqlite3ext.h src/sqlite/sqlite3.c)
@@ -57,7 +71,7 @@ add_library(sqlitecpp
 	src/SQLiteCpp/Statement.h src/SQLiteCpp/Statement.cpp src/SQLiteCpp/Transaction.h src/SQLiteCpp/Transaction.cpp src/SQLiteCpp/Utils.h src/SQLiteCpp/VariadicBind.h)
 
 add_executable(nanocap
-	src/shared.hpp
+	src/shared.hpp src/util/hex.hpp src/util/nanoutil.hpp src/util/nanoutil.cpp
 	src/db.hpp src/db.cpp src/packet_handler.hpp src/packet_handler.cpp src/config.hpp
 	src/app.hpp src/app.cpp
 	src/webserver.hpp src/webserver.cpp
@@ -65,7 +79,7 @@ add_executable(nanocap
 	src/util/ctpl_stl.h src/util/termcolor.hpp
 	)
 
-target_link_libraries(nanocap ${CMAKE_DL_LIBS} sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus)
+target_link_libraries(nanocap ${CMAKE_DL_LIBS} blake2b sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus)
 
 if (APPLE)
 	target_link_libraries(nanocap "-framework CoreFoundation")

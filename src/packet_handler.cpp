@@ -205,24 +205,25 @@ void nanocap::packet_handler::handle_udp(pcpp::Packet& packet)
 			}
 			case nano::protocol::nano_t::ENUM_MSGTYPE_KEEPALIVE:
 			{
-				nano::protocol::nano_t::msg_keepalive_t* msg = static_cast<nano::protocol::nano_t::msg_keepalive_t *> (proto.body ());
+				nano::protocol::nano_t::msg_keepalive_t* msg = static_cast<nano::protocol::nano_t::msg_keepalive_t*> (proto.body ());
 				this->handle_message (*msg, info);
 				break;
 			}
 			case nano::protocol::nano_t::ENUM_MSGTYPE_CONFIRM_ACK:
 			{
-				nano::protocol::nano_t::msg_confirm_ack_t* msg = static_cast<nano::protocol::nano_t::msg_confirm_ack_t *> (proto.body ());
+				nano::protocol::nano_t::msg_confirm_ack_t* msg = static_cast<nano::protocol::nano_t::msg_confirm_ack_t*> (proto.body ());
 				this->handle_message (*msg, info);
 				break;
 			}
 			case nano::protocol::nano_t::ENUM_MSGTYPE_CONFIRM_REQ:
 			{
-				nano::protocol::nano_t::msg_confirm_req_t* msg = static_cast<nano::protocol::nano_t::msg_confirm_req_t *> (proto.body ());
+				nano::protocol::nano_t::msg_confirm_req_t* msg = static_cast<nano::protocol::nano_t::msg_confirm_req_t*> (proto.body ());
 				this->handle_message (*msg, info);
 				break;
 			}
 			case nano::protocol::nano_t::ENUM_MSGTYPE_PUBLISH: {
-				
+				nano::protocol::nano_t::msg_publish_t* msg = static_cast<nano::protocol::nano_t::msg_publish_t*> (proto.body ());
+				this->handle_message (*msg, info);
 				break;
 			}
 			case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL: {
