@@ -1,0 +1,3 @@
+blake2b.o: $(Blake2Dir)blake2b-ref.c $(Blake2Dir)blake2-impl.h $(Blake2Dir)blake2.h
+
+FINAL_OBJECTS += blake2b.o

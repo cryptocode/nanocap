@@ -7,7 +7,7 @@
 #include <shared.hpp>
 #include <config.hpp>
 #include <SQLiteCpp/SQLiteCpp.h>
-#include <nlohmann/json.hpp>
+#include <json/json.hpp>
 
 using json = nlohmann::json;
 
@@ -120,7 +120,7 @@ namespace nanocap
 		std::unique_ptr<SQLite::Statement> stmt_packet_per_msg_type;
 		
 		/** Next ID for sqlite insert (note that sqlite3 only supports signed integers */
-		std::atomic_int64_t next_id {0};
+		std::atomic<std::int64_t> next_id {0};
 		
 		std::mutex db_mutex;
 	};

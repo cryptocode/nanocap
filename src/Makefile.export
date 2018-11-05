@@ -1,0 +1,14 @@
+app.oo: $(BaseDir)app.cpp $(BaseDir)app.hpp $(BaseDir)nano.h $(BaseDir)webserver.hpp $(BaseDir)db.hpp $(BaseDir)packet_handler.hpp $(UtilDir)termcolor.hpp
+db.oo: $(BaseDir)db.cpp $(BaseDir)db.hpp $(BaseDir)app.hpp $(BaseDir)db.hpp $(BaseDir)packet_handler.hpp $(UtilDir)hex.hpp $(UtilDir)nanoutil.hpp $(BaseDir)shared.hpp $(BaseDir)config.hpp $(SQLiteCppDir)/SQLiteCpp.h
+nano.oo: $(BaseDir)nano.cpp $(BaseDir)nano.h $(KaitaiDir)kaitaistruct.h
+packet_handler.oo: $(BaseDir)packet_handler.cpp $(BaseDir)packet_handler.hpp $(BaseDir)app.hpp $(BaseDir)db.hpp $(BaseDir)packet_handler.hpp $(UtilDir)termcolor.hpp $(BaseDir)nano.h $(BaseDir)shared.hpp
+webserver.oo: $(BaseDir)webserver.cpp $(BaseDir)webserver.hpp $(BaseDir)packet_handler.hpp $(BaseDir)app.hpp $(BaseDir)db.hpp $(BaseDir)webserver/client_http.hpp $(BaseDir)webserver/server_http.hpp $(BaseDir)json/json.hpp
+
+$(BaseDir)config.hpp: $(BaseDir)json/json.hpp
+$(BaseDir)db.hpp: $(BaseDir)json/json.hpp
+
+FINAL_OBJECTS += app.oo
+FINAL_OBJECTS += db.oo
+FINAL_OBJECTS += nano.oo
+FINAL_OBJECTS += packet_handler.oo
+FINAL_OBJECTS += webserver.oo

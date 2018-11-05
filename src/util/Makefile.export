@@ -1,0 +1,3 @@
+util.oo: $(UtilDir)ctpl_stl.h $(UtilDir)hex.hpp $(UtilDir)nanoutil.cpp $(UtilDir)nanoutil.hpp $(UtilDir)termcolor.hpp
+
+FINAL_OBJECTS += util.oo

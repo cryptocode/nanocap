@@ -1,0 +1,3 @@
+kaitai.oo: $(KaitaiDir)kaitaistream.cpp $(KaitaiDir)custom_decoder.h $(KaitaiDir)kaitaistream.h $(KaitaiDir)kaitaistruct.h
+
+FINAL_OBJECTS += kaitai.oo

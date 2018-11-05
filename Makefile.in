@@ -1,0 +1,45 @@
+srcdir       := @srcdir@/src
+BaseDir      := $(srcdir)/
+KaitaiDir    := $(BaseDir)kaitai/
+SQLiteCppDir := $(BaseDir)SQLiteCpp/
+Blake2Dir    := $(BaseDir)blake2/ref/
+UtilDir      := $(BaseDir)util/
+
+CC       = @CC@
+CXX      = @CXX@
+LIBS     = @LIBS@ @SQLITE3_LDFLAGS@ @BOOST_LDFLAGS@ @PCAPPLUSPLUS_LIBS@
+CPPFLAGS = @DEFS@ @CPPFLAGS@ @BOOST_CPPFLAGS@ -I$(srcdir) -I$(KaitaiDir) -I$(SQLiteCppDir) -I$(Blake2Dir) -I$(UtilDir) -I$(BaseDir)
+CFLAGS   = @CFLAGS@ @SQLITE3_CFLAGS@ @PCAPPLUSPLUS_CFLAGS@
+CXXFLAGS = @CXXFLAGS@ @SQLITE3_CFLAGS@ @PCAPPLUSPLUS_CFLAGS@
+LDFLAGS  = @LDFLAGS@ @SQLITE3_LDFLAGS@ @BOOST_LDFLAGS@
+VPATH    = .
+@SET_MAKE@
+
+all: nanocap
+
+include $(KaitaiDir)Makefile.export
+include $(SQLiteCppDir)Makefile.export
+include $(Blake2Dir)Makefile.export
+include $(UtilDir)Makefile.export
+include $(BaseDir)Makefile.export
+
+nanocap: $(FINAL_OBJECTS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o "$@" $^ $(LIBS)
+
+%.oo:
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o "$@" -c $(filter %.C %.cc %.cpp,$^)
+
+%.o:
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o "$@" -c $(filter %.c,$^)
+
+clean:
+	rm -f nanocap
+	rm -f $(FINAL_OBJECTS)
+
+distclean: clean
+	rm -f Makefile config.log config.status
+
+mrproper: distclean
+	rm -f config.guess config.sub configure install-sh aclocal.m4
+
+.PHONY: all clean distclean mrproper

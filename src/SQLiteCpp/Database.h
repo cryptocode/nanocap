@@ -19,6 +19,10 @@
 struct sqlite3;
 struct sqlite3_context;
 
+#if SQLITE_VERSION_NUMBER < 3019000
+#  define SQLITE_USE_LEGACY_STRUCT 1
+#endif
+
 #ifndef SQLITE_USE_LEGACY_STRUCT // Since SQLITE 3.19 (used by default since SQLiteCpp 2.1.0)
 typedef struct sqlite3_value sqlite3_value;
 #else // Before SQLite 3.19 (legacy struct forward declaration can be activated with CMake SQLITECPP_LEGACY_STRUCT var)

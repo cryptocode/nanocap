@@ -4,6 +4,7 @@
 #include <db.hpp>
 #include <packet_handler.hpp>
 #include <util/termcolor.hpp>
+#include <atomic>
 #include <iostream>
 #include <string>
 #include <vector>
