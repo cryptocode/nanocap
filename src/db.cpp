@@ -55,7 +55,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	// Table with a comma-separated list of vote-by-hash hahes for a given packet
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS vote "
-				 "(id INTEGER NOT NULL, packet_id INTEGER NOT NULL, account TEXT, signature TEXT, sequence INTEGER, hashes TEXT)"
+				 "(id INTEGER NOT NULL, packet_id INTEGER NOT NULL, vbh INTEGER, account TEXT, signature TEXT, sequence INTEGER, hashes TEXT)"
 				 );
 	
 	sqlite->exec(
@@ -107,7 +107,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	stmt_packet = std::make_unique<SQLite::Statement>(*sqlite,
 													  "INSERT INTO packet VALUES (:id, :ipv, :hdr_msg_type, :hdr_version_using, :hdr_version_min, :hdr_block_type, :hdr_extensions, :block_table, :srcip, :srcport, :dstip, :dstport, :time, :time_usec)");
 	stmt_vote = std::make_unique<SQLite::Statement>(*sqlite,
-													"INSERT INTO vote VALUES (:id, :packet_id, :account, :signature, :sequence, :hashes)");
+													"INSERT INTO vote VALUES (:id, :packet_id, :vbh, :account, :signature, :sequence, :hashes)");
 	stmt_block_state = std::make_unique<SQLite::Statement>(*sqlite,
 														   "INSERT INTO block_state VALUES (:id, :packet_id, :hash, :account, :previous, :representative, :balance, :link, :signature, :work)");
 	stmt_block_send = std::make_unique<SQLite::Statement>(*sqlite,
@@ -290,10 +290,12 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 	if (msg.block())
 	{
 		put_block(msg.block(), packet_id);
+		stmt_vote->bind(":vbh", 0);
 	}
 	// Vote-by-hash
 	else if (msg.votebyhash() && msg.votebyhash()->hashes() && !msg.votebyhash()->hashes()->empty())
 	{
+		stmt_vote->bind(":vbh", 1);
 		std::ostringstream hashes;
 		
 		auto size = msg.votebyhash()->hashes()->size();
@@ -308,6 +310,11 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 		}
 
 		stmt_vote->bind(":hashes", hashes.str());
+	}
+	else
+	{
+		// Shouldn't happen unless the packet is malformed
+		stmt_vote->bind(":vbh", 2);
 	}
 	
 	// Common fields
