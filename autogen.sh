@@ -19,7 +19,9 @@ urls=(
 	'http://git.savannah.gnu.org/gitweb/?p=autoconf-archive.git;a=blob_plain;f=m4/ax_boost_asio.m4'
 	'http://git.savannah.gnu.org/gitweb/?p=autoconf-archive.git;a=blob_plain;f=m4/ax_boost_iostreams.m4'
 	'http://git.savannah.gnu.org/gitweb/?p=autoconf-archive.git;a=blob_plain;f=m4/ax_boost_program_options.m4'
+	'http://git.savannah.gnu.org/gitweb/?p=autoconf-archive.git;a=blob_plain;f=m4/ax_boost_system.m4'
 	'http://git.savannah.gnu.org/gitweb/?p=autoconf-archive.git;a=blob_plain;f=m4/ax_boost_filesystem.m4'
+	'https://chiselapp.com/user/rkeene/repository/autoconf/doc/trunk/shobj.m4'
 	file:///usr/share/aclocal/pkg.m4
 )
 

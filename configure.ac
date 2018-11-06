@@ -43,5 +43,9 @@ PKG_CHECK_MODULES([PCAPPLUSPLUS], [PcapPlusPlus],, [
 	AC_MSG_ERROR([pcap++ is required])
 ])
 
+dnl Set RPATH
+LDFLAGS="${LDFLAGS} ${BOOST_LDFLAGS} ${SQLITE3_LDFLAGS}"
+DC_SYNC_RPATH
+
 dnl Produce output
 AC_OUTPUT(Makefile)

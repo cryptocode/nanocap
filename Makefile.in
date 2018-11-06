@@ -7,11 +7,11 @@ UtilDir      := $(BaseDir)util/
 
 CC       = @CC@
 CXX      = @CXX@
-LIBS     = @LIBS@ @SQLITE3_LDFLAGS@ @BOOST_LDFLAGS@ @PCAPPLUSPLUS_LIBS@
+LIBS     = @LIBS@ @PCAPPLUSPLUS_LIBS@ @BOOST_ASIO_LIB@ @BOOST_FILESYSTEM_LIB@ @BOOST_IOSTREAMS_LIB@ @BOOST_PROGRAM_OPTIONS_LIB@ @BOOST_SYSTEM_LIB@
 CPPFLAGS = @DEFS@ @CPPFLAGS@ @BOOST_CPPFLAGS@ -I$(srcdir) -I$(KaitaiDir) -I$(SQLiteCppDir) -I$(Blake2Dir) -I$(UtilDir) -I$(BaseDir)
 CFLAGS   = @CFLAGS@ @SQLITE3_CFLAGS@ @PCAPPLUSPLUS_CFLAGS@
 CXXFLAGS = @CXXFLAGS@ @SQLITE3_CFLAGS@ @PCAPPLUSPLUS_CFLAGS@
-LDFLAGS  = @LDFLAGS@ @SQLITE3_LDFLAGS@ @BOOST_LDFLAGS@
+LDFLAGS  = @LDFLAGS@
 VPATH    = .
 @SET_MAKE@
 
@@ -43,3 +43,4 @@ mrproper: distclean
 	rm -f config.guess config.sub configure install-sh aclocal.m4
 
 .PHONY: all clean distclean mrproper
+.SUFFIXES:

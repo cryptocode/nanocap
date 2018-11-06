@@ -3,10 +3,44 @@ AC_DEFUN([NANOCAP_FIND_BOOST], [
 	AX_BOOST_BASE(1.60,, [
 		AC_MSG_ERROR([Need Boost 1.60 or greater])
 	])
+
 	AX_BOOST_ASIO
 	AX_BOOST_IOSTREAMS
-	AX_BOOST_FILESYSTEM
 	AX_BOOST_PROGRAM_OPTIONS
+	AX_BOOST_SYSTEM
+	AX_BOOST_FILESYSTEM
+
+
+	dnl Using boost-system with C++14 requires that Boost was compiled
+	dnl for C++14 as well, verify that this is true
+	AC_MSG_CHECKING([for Boost having been compiled with a C++14 compiler])
+	save_CPPFLAGS="${CPPFLAGS}"
+	save_CXXFLAGS="${CXXFLAGS}"
+	save_LDFLAGS="${LDFLAGS}"
+	save_LIBS="${LIBS}"
+	CPPFLAGS="${CPPFLAGS} ${BOOST_CPPFLAGS}"
+	CXXFLAGS="${CXXFLAGS} ${BOOST_CPPFLAGS}"
+	LDFLAGS="${LDFLAGS} ${BOOST_LDFLAGS}"
+	LIBS="${LIBS} ${BOOST_SYSTEM_LIB}"
+	AC_LANG_PUSH([C++])
+	AC_LINK_IFELSE([
+		AC_LANG_PROGRAM([
+#include <boost/system/error_code.hpp>
+		], [
+boost::system::error_code foo;
+		])
+	], [
+		AC_MSG_RESULT([yes])
+	], [
+		AC_MSG_RESULT([no])
+
+		AC_DEFINE(BOOST_ERROR_CODE_HEADER_ONLY, [1], [Define to prevent error codes from requiring library support])
+	])
+	AC_LANG_POP([C++])
+	CPPFLAGS="${save_CPPFLAGS}"
+	CXXFLAGS="${save_CXXFLAGS}"
+	LDFLAGS="${save_LDFLAGS}"
+	LIBS="${save_LIBS}"
 ])
 
 dnl app.cpp:#include <boost/asio.hpp>
