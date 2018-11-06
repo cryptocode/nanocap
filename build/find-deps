@@ -1,0 +1,53 @@
+#! /usr/bin/env bash
+
+ourDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
+cd "${ourDir}/.." || exit 1
+cd src
+
+defs=(-DKS_STR_ENCODING_NONE=1)
+
+includes=()
+while IFS='' read -r subdirectory; do
+	includes+=("-I$(cd "${subdirectory}" && echo "${subdirectory}" || echo /dev/null)")
+done < <(find . -type d)
+
+function get_deps_for_directory () {
+	local directory
+
+	directory="$1"
+
+	(
+		files=()
+		compiler='c'
+		for file in "${directory}"/*.cc "${directory}"/*.C "${directory}"/*.cxx "${directory}"/*.cpp "${directory}"/*.c; do
+			if [ -f "${file}" ]; then
+				files+=("${file}")
+				case "${file}" in
+					*.c)
+						;;
+					*)
+						compiler='c++'
+						;;
+				esac
+			fi
+		done
+		if [ -z "${files[*]}" ]; then
+			exit 0
+		fi
+
+		case "${compiler}" in
+			c++)
+				c++ -std=gnu++14 -MM -MG "${defs[@]}" "${includes[@]}" "${files[@]}" || exit 1
+				;;
+			c)
+				cc -std=c11 -MM -MG "${defs[@]}" "${includes[@]}" "${files[@]}" || exit 1
+				;;
+		esac
+	) || return 1
+}
+
+find . -type d | while IFS='' read -r directory; do
+	deps="$(get_deps_for_directory "${directory}")" || exit 1
+
+	echo "${deps}" | "${ourDir}/rewrite-deps" "${directory}" '$(srcdir)'
+done

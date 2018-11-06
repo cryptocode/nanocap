@@ -1,5 +1,6 @@
 build/work
 Makefile
+Makefile.deps
 aclocal.m4
 config.guess
 config.log

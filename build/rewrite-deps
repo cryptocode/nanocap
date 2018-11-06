@@ -1,21 +1,21 @@
 #! /usr/bin/env tclsh
 
 if {[llength $argv] != 2} {
-	puts stderr "usage: update-deps <inpath> <outpath>"
+	puts stderr "usage: rewrite-deps <targetprefix> <depprefix>"
 
 	exit 1
 }
 
-set rewrite(inpath) [lindex $argv 0]
-set rewrite(outpath) [lindex $argv 1]
 
-proc rewrite_dep {dep path replacement} {
-	# XXX:TODO: This does not verify that the path is found at the start of the dependency
-	set newdep [string map [list $path $replacement] $dep]
-	if {$newdep eq $dep} {
-		return ""
-	}
+set targetprefix [lindex $argv 0]
+set depprefix [lindex $argv 1]
 
+set targetprefix [regsub -all {[/.-]+} $targetprefix {-}]
+append targetprefix "-"
+set targetprefix [string trimleft $targetprefix -]
+
+proc rewrite_dep {dep depprefix} {
+	set newdep "${depprefix}${dep}"
 	return $newdep
 }
 
@@ -49,7 +49,7 @@ foreach {target deps} [array get target2deps] {
 	set valid_deps [list]
 	set targetExtension "o"
 	foreach dep $deps {
-		set dep [rewrite_dep $dep $rewrite(inpath) $rewrite(outpath)]
+		set dep [rewrite_dep $dep $depprefix]
 		if {$dep eq ""} {
 			continue
 		}
@@ -72,7 +72,11 @@ foreach {target deps} [array get target2deps] {
 	set work [lrange $work 0 end-1]
 	lappend work $targetExtension
 	set target [join $work .]
-	set target "${rewrite(outpath)}$target"
+	set target "${targetprefix}$target"
+
+	if {[llength [array names target2deps]] == 1} {
+		set target "[string trim ${targetprefix} -].${targetExtension}"
+	}
 
 	set space [string repeat " " [expr {[string length $target] + 2 + 4}]]
 	puts "$target: [join $valid_deps " \\\n${space}"]"
