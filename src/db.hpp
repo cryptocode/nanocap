@@ -77,7 +77,9 @@ namespace nanocap
 				primary_tx->commit();
 				primary_tx = std::make_unique<SQLite::Transaction> (*sqlite);
 				
-				int64_t size = sqlite->execAndGet("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()").getInt64();
+				int64_t page_size = sqlite->execAndGet("PRAGMA page_size").getInt64();
+				int64_t page_count = sqlite->execAndGet("PRAGMA page_count").getInt64();
+				auto size (page_size * page_count);
 				if (size > app.get_config().capture.max_capture_megabytes * 1024LL * 1024LL)
 				{
 					max_reached = true;
