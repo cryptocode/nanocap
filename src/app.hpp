@@ -13,7 +13,7 @@ namespace nanocap
 	class app
 	{
 	public:
-		const std::string VERSION = "1.0";
+		const std::string VERSION = PACKAGE_VERSION;
 
 		app();
 		~app();
