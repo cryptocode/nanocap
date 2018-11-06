@@ -62,7 +62,7 @@ namespace nanocap
 
 	private:
 		std::unique_ptr<SQLite::Transaction> primary_tx;
-		std::error_code put_block(nano::protocol::nano_t::block_selector_t* block_selector, int64_t packet_id);
+		std::error_code put_block(nano::protocol::nano_t::block_selector_t* block_selector, int64_t id, int64_t packet_id, /*out*/ std::string& content_table);
 		
 		/**
 		 * Set the header portion of the message. This is shared across message types.
@@ -95,7 +95,8 @@ namespace nanocap
 			stmt->bind(":hdr_block_type", static_cast<int>(msg._parent()->header()->block_type()));
 			stmt->bind(":hdr_extensions", static_cast<int>(msg._parent()->header()->extensions()));
 			// This is overriden by certain messages
-			stmt->bind(":block_table", nullptr);
+			stmt->bind(":content_table", nullptr);
+			stmt->bind(":content_id", nullptr);
 			return ec;
 		}
 		
