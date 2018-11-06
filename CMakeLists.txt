@@ -79,7 +79,7 @@ add_executable(nanocap
 	src/util/ctpl_stl.h src/util/termcolor.hpp
 	)
 
-target_link_libraries(nanocap ${CMAKE_DL_LIBS} blake2b sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus)
+target_link_libraries(nanocap blake2b sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus ${CMAKE_DL_LIBS})
 
 if (APPLE)
 	target_link_libraries(nanocap "-framework CoreFoundation")
