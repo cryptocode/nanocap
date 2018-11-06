@@ -19,13 +19,13 @@ all: nanocap
 
 include $(srcdir)/Makefile.deps
 
-OBJECTS = nano.oo webserver.oo packet_handler.oo app.oo db.oo kaitai.oo SQLiteCpp-Exception.oo SQLiteCpp-Statement.oo SQLiteCpp-Database.oo SQLiteCpp-Transaction.oo SQLiteCpp-Column.oo SQLiteCpp-Backup.oo util.oo
+OBJECTS = nano.cc.o webserver.cc.o packet_handler.cc.o app.cc.o db.cc.o kaitai.cc.o SQLiteCpp-Exception.cc.o SQLiteCpp-Statement.cc.o SQLiteCpp-Database.cc.o SQLiteCpp-Transaction.cc.o SQLiteCpp-Column.cc.o SQLiteCpp-Backup.cc.o util.cc.o
 OBJECTS += blake2-ref-blake2b-ref.o
 
 nanocap: $(OBJECTS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o "$@" $^ $(LIBS)
 
-%.oo:
+%.cc.o:
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o "$@" -c $(filter %.C %.cc %.cpp,$^)
 
 %.o:

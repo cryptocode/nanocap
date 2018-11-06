@@ -56,10 +56,9 @@ foreach {target deps} [array get target2deps] {
 
 		switch -glob -- $dep {
 			"*.cc" - "*.C" - "*.cxx" - "*.cpp" {
-				set targetExtension "oo"
+				set targetExtension "cc.o"
 			}
 		}
-
 
 		lappend valid_deps $dep
 	}
