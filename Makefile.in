@@ -29,7 +29,7 @@ nanocap: $(OBJECTS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o "$@" -c $(filter %.C %.cc %.cpp,$^)
 
 %.o:
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o "$@" -c $(filter %.c,$^)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o "$@" -c $(filter %.c,$^)
 
 clean:
 	rm -f nanocap
