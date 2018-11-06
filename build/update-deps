@@ -1,0 +1,79 @@
+#! /usr/bin/env tclsh
+
+if {[llength $argv] != 2} {
+	puts stderr "usage: update-deps <inpath> <outpath>"
+
+	exit 1
+}
+
+set rewrite(inpath) [lindex $argv 0]
+set rewrite(outpath) [lindex $argv 1]
+
+proc rewrite_dep {dep path replacement} {
+	# XXX:TODO: This does not verify that the path is found at the start of the dependency
+	set newdep [string map [list $path $replacement] $dep]
+	if {$newdep eq $dep} {
+		return ""
+	}
+
+	return $newdep
+}
+
+set buffer ""
+while true {
+	gets stdin line
+	if {[eof stdin] && $line eq ""} {
+		break
+	}
+
+	if {[info exists lastline]} {
+		set line "${lastline}${line}"
+		unset -nocomplain lastline
+	}
+
+	if {[string index $line end] eq "\\"} {
+		set line [string range $line 0 end-1]
+		set line [string trim $line]
+		append lastline " " $line
+		continue
+	}
+
+	set work [split $line :]
+	set target [string trim [lindex $work 0]]
+	set deps [split [string trim [lindex $work 1]]]
+
+	set target2deps($target) $deps
+}
+
+foreach {target deps} [array get target2deps] {
+	set valid_deps [list]
+	set targetExtension "o"
+	foreach dep $deps {
+		set dep [rewrite_dep $dep $rewrite(inpath) $rewrite(outpath)]
+		if {$dep eq ""} {
+			continue
+		}
+
+		switch -glob -- $dep {
+			"*.cc" - "*.C" - "*.cxx" - "*.cpp" {
+				set targetExtension "oo"
+			}
+		}
+
+
+		lappend valid_deps $dep
+	}
+
+	if {[llength $valid_deps] == 0} {
+		continue
+	}
+
+	set work [split $target .]
+	set work [lrange $work 0 end-1]
+	lappend work $targetExtension
+	set target [join $work .]
+	set target "${rewrite(outpath)}$target"
+
+	set space [string repeat " " [expr {[string length $target] + 2 + 4}]]
+	puts "$target: [join $valid_deps " \\\n${space}"]"
+}
