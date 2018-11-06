@@ -85,12 +85,15 @@ namespace nanocap
 			}
 
 			std::error_code ec;
+			stmt->clearBindings();
 			stmt->bind(":id", id);
 			stmt->bind(":hdr_msg_type", msg._parent()->header()->message_type());
 			stmt->bind(":hdr_version_using", msg._parent()->header()->version_using());
 			stmt->bind(":hdr_version_min", msg._parent()->header()->version_min());
 			stmt->bind(":hdr_block_type", static_cast<int>(msg._parent()->header()->block_type()));
 			stmt->bind(":hdr_extensions", static_cast<int>(msg._parent()->header()->extensions()));
+			// This is overriden by certain messages
+			stmt->bind(":block_table", nullptr);
 			return ec;
 		}
 		
@@ -115,7 +118,7 @@ namespace nanocap
 		std::unique_ptr<SQLite::Statement> stmt_block_receive;
 		std::unique_ptr<SQLite::Statement> stmt_block_open;
 		std::unique_ptr<SQLite::Statement> stmt_block_change;
-		std::unique_ptr<SQLite::Statement> stmt_vbh_hashes;
+		std::unique_ptr<SQLite::Statement> 		stmt_vote;
 		std::unique_ptr<SQLite::Statement> stmt_host;
 		std::unique_ptr<SQLite::Statement> stmt_packet_per_msg_type;
 		

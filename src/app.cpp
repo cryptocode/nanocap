@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
 			handler.print_devices();
 			std::exit(0);
 		}
-		else
+		else if (application.get_config().capture.enabled)
 		{
 			handler.start_capture();
 		}

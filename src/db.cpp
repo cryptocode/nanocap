@@ -38,7 +38,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 				 "CREATE TABLE IF NOT EXISTS packet "
 				 "("
 				 	"id INTEGER NOT NULL, ipv INTEGER NOT NULL, msg_type INTEGER NOT NULL, version_using INTEGER, version_min INTEGER, block_type INTEGER, extensions INTEGER, "
-				 	"srcip TEXT DEFAULT NULL, srcport INTEGER DEFAULT NULL, dstip TEXT DEFAULT NULL, dstport INTEGER DEFAULT NULL, "
+				 	"block_table TEXT DEFAULT NULL, srcip TEXT DEFAULT NULL, srcport INTEGER DEFAULT NULL, dstip TEXT DEFAULT NULL, dstport INTEGER DEFAULT NULL, "
 				 	"time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, time_usec INTEGER DEFAULT 0"
 				 ")"
 				 );
@@ -54,15 +54,15 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	
 	// Table with a comma-separated list of vote-by-hash hahes for a given packet
 	sqlite->exec(
-				 "CREATE TABLE IF NOT EXISTS vote_by_hash "
-				 "(id INTEGER NOT NULL, packet_id INTEGER NOT NULL, hashes TEXT)"
+				 "CREATE TABLE IF NOT EXISTS vote "
+				 "(id INTEGER NOT NULL, packet_id INTEGER NOT NULL, account TEXT, signature TEXT, sequence INTEGER, hashes TEXT)"
 				 );
 	
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS block_state "
 				 "( "
 				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
-				 	"hash TEXT, account TEXT, previous TEXT, representative TEXT, balance TEXT, link TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 	"hash TEXT, account TEXT, previous TEXT, representative TEXT, balance TEXT, link TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
 	
@@ -70,7 +70,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 				 "CREATE TABLE IF NOT EXISTS block_send "
 				 "( "
 				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
-				 	"hash TEXT, previous TEXT, destination TEXT, balance TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 	"hash TEXT, previous TEXT, destination TEXT, balance TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
 	
@@ -78,7 +78,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 				 "CREATE TABLE IF NOT EXISTS block_receive "
 				 "( "
 				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
-				 	"hash TEXT, previous TEXT, source TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 	"hash TEXT, previous TEXT, source TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
 	
@@ -86,7 +86,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 				 "CREATE TABLE IF NOT EXISTS block_open "
 				 "( "
 				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
-				 	"hash TEXT, source TEXT, representative TEXT, account TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 	"hash TEXT, source TEXT, representative TEXT, account TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
 	
@@ -94,7 +94,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 				 "CREATE TABLE IF NOT EXISTS block_change "
 				 "( "
 				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
-				 	"hash TEXT, previous TEXT, representative TEXT, signature TEXT, work UNSIGNED BIG INT"
+				 	"hash TEXT, previous TEXT, representative TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
 				 
@@ -105,9 +105,9 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	next_id = 1'000'000'000 * sqlite->execAndGet("SELECT MAX(id_multiplier) FROM runs").getInt64();
 
 	stmt_packet = std::make_unique<SQLite::Statement>(*sqlite,
-													  "INSERT INTO packet VALUES (:id, :ipv, :hdr_msg_type, :hdr_version_using, :hdr_version_min, :hdr_block_type, :hdr_extensions, :srcip, :srcport, :dstip, :dstport, :time, :time_usec)");
-	stmt_vbh_hashes = std::make_unique<SQLite::Statement>(*sqlite,
-														  "INSERT INTO vote_by_hash VALUES (:id, :packet_id, :hashes)");
+													  "INSERT INTO packet VALUES (:id, :ipv, :hdr_msg_type, :hdr_version_using, :hdr_version_min, :hdr_block_type, :hdr_extensions, :block_table, :srcip, :srcport, :dstip, :dstport, :time, :time_usec)");
+	stmt_vote = std::make_unique<SQLite::Statement>(*sqlite,
+													"INSERT INTO vote VALUES (:id, :packet_id, :account, :signature, :sequence, :hashes)");
 	stmt_block_state = std::make_unique<SQLite::Statement>(*sqlite,
 														   "INSERT INTO block_state VALUES (:id, :packet_id, :hash, :account, :previous, :representative, :balance, :link, :signature, :work)");
 	stmt_block_send = std::make_unique<SQLite::Statement>(*sqlite,
@@ -307,12 +307,27 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 			}
 		}
 
-		stmt_vbh_hashes->bind(":id", next_id.fetch_add(1));
-		stmt_vbh_hashes->bind(":packet_id", packet_id);
-		stmt_vbh_hashes->bind(":hashes", hashes.str());
-		stmt_vbh_hashes->exec();
-		stmt_vbh_hashes->reset();
+		stmt_vote->bind(":hashes", hashes.str());
 	}
+	
+	// Common fields
+	if (msg.common())
+	{
+		stmt_vote->bind(":account", to_hex(msg.common()->account()));
+		stmt_vote->bind(":signature", to_hex(msg.common()->signature()));
+		stmt_vote->bind(":sequence", static_cast<int64_t>(msg.common()->sequence()));
+	}
+	else
+	{
+		stmt_vote->bind(":account", nullptr);
+		stmt_vote->bind(":signature", nullptr);
+		stmt_vote->bind(":sequence", nullptr);
+	}
+
+	stmt_vote->bind(":id", next_id.fetch_add(1));
+	stmt_vote->bind(":packet_id", packet_id);
+	stmt_vote->exec();
+	stmt_vote->reset();
 
 	auto rows = stmt_packet->exec();
 	assert (rows == 1);
@@ -326,7 +341,6 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_req_t& msg,
 {
 	std::error_code ec;
 	int64_t packet_id = next_id.fetch_add(1);
-	
 	std::lock_guard<std::mutex> guard (db_mutex);
 	bind_header_fields(stmt_packet.get(), msg, packet_id);
 	bind_udp_fields(stmt_packet.get(), info);
@@ -367,6 +381,7 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_STATE:
 			{
 				auto block = static_cast<nano::protocol::nano_t::block_state_t*>(block_selector->block());
+				stmt_packet->bind(":block_table", "block_state");
 				stmt_block_state->bind(":id", next_id.fetch_add(1));
 				stmt_block_state->bind(":packet_id", packet_id);
 				stmt_block_state->bind(":hash", to_hex(hash_of(block)));
@@ -383,6 +398,7 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_SEND:
 			{
 				auto block = static_cast<nano::protocol::nano_t::block_send_t*>(block_selector->block());
+				stmt_packet->bind(":block_table", "block_send");
 				stmt_block_send->bind(":id", next_id.fetch_add(1));
 				stmt_block_send->bind(":packet_id", packet_id);
 				stmt_block_send->bind(":hash", to_hex(hash_of(block)));
@@ -398,6 +414,7 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_RECEIVE:
 			{
 				auto block = static_cast<nano::protocol::nano_t::block_receive_t*>(block_selector->block());
+				stmt_packet->bind(":block_table", "block_receive");
 				stmt_block_receive->bind(":id", next_id.fetch_add(1));
 				stmt_block_receive->bind(":packet_id", packet_id);
 				stmt_block_receive->bind(":hash", to_hex(hash_of(block)));
@@ -412,6 +429,7 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_OPEN:
 			{
 				auto block = static_cast<nano::protocol::nano_t::block_open_t*>(block_selector->block());
+				stmt_packet->bind(":block_table", "block_open");
 				stmt_block_open->bind(":id", next_id.fetch_add(1));
 				stmt_block_open->bind(":packet_id", packet_id);
 				stmt_block_open->bind(":hash", to_hex(hash_of(block)));
@@ -427,6 +445,7 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 			case nano::protocol::nano_t::enum_blocktype_t::ENUM_BLOCKTYPE_CHANGE:
 			{
 				auto block = static_cast<nano::protocol::nano_t::block_change_t*>(block_selector->block());
+				stmt_packet->bind(":block_table", "block_change");
 				stmt_block_change->bind(":id", next_id.fetch_add(1));
 				stmt_block_change->bind(":packet_id", packet_id);
 				stmt_block_change->bind(":hash", to_hex(hash_of(block)));
@@ -440,6 +459,7 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 			}
 		}
 	}
+
 	return ec;
 }
 
@@ -452,11 +472,11 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_publish_t& msg, nan
 	bind_header_fields(stmt_packet.get(), msg, packet_id);
 	bind_udp_fields(stmt_packet.get(), info);
 	
-	auto rows = stmt_packet->exec();
-	assert (rows == 1);
-	
 	put_block(msg.body(), packet_id);
 	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+
 	// Prepare for next use
 	stmt_packet->reset();
 
