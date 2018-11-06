@@ -62,7 +62,7 @@ namespace nanocap
 
 	private:
 		std::unique_ptr<SQLite::Transaction> primary_tx;
-		std::error_code put_block(nano::protocol::nano_t::block_selector_t* block_selector, int64_t packet_id);
+		std::error_code put_block(nano::protocol::nano_t::block_selector_t* block_selector, int64_t id, int64_t packet_id, /*out*/ std::string& content_table);
 		
 		/**
 		 * Set the header portion of the message. This is shared across message types.
@@ -77,7 +77,9 @@ namespace nanocap
 				primary_tx->commit();
 				primary_tx = std::make_unique<SQLite::Transaction> (*sqlite);
 				
-				int64_t size = sqlite->execAndGet("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()").getInt64();
+				int64_t page_size = sqlite->execAndGet("PRAGMA page_size").getInt64();
+				int64_t page_count = sqlite->execAndGet("PRAGMA page_count").getInt64();
+				auto size (page_size * page_count);
 				if (size > app.get_config().capture.max_capture_megabytes * 1024LL * 1024LL)
 				{
 					max_reached = true;
@@ -93,7 +95,8 @@ namespace nanocap
 			stmt->bind(":hdr_block_type", static_cast<int>(msg._parent()->header()->block_type()));
 			stmt->bind(":hdr_extensions", static_cast<int>(msg._parent()->header()->extensions()));
 			// This is overriden by certain messages
-			stmt->bind(":block_table", nullptr);
+			stmt->bind(":content_table", nullptr);
+			stmt->bind(":content_id", nullptr);
 			return ec;
 		}
 		
