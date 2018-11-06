@@ -2,4 +2,4 @@
 
 cd "$(dirname "${BASH_SOURCE[0]}")"/.. || exit 1
 
-ls
+./autogen.sh || exit 1

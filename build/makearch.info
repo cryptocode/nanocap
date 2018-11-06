@@ -43,7 +43,7 @@ UPDATED=""
 AFTER=""
 
 # Files matching these (space-seperated) patterns are deleted
-TMPS="build aclocal"
+TMPS="build aclocal autogen.sh"
 
 # Supply a path to upload the archive to after completion
 # The string "@@ARCHIVE_FILENAME@@" becomes the name of the
