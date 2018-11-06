@@ -1,6 +1,6 @@
 build/work
 Makefile
-Makefile.deps
+src/Makefile.deps
 aclocal.m4
 config.guess
 config.log

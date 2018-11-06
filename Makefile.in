@@ -8,7 +8,7 @@ UtilDir      := $(BaseDir)util/
 CC       = @CC@
 CXX      = @CXX@
 LIBS     = @LIBS@ @PCAPPLUSPLUS_LIBS@ @BOOST_ASIO_LIB@ @BOOST_FILESYSTEM_LIB@ @BOOST_IOSTREAMS_LIB@ @BOOST_PROGRAM_OPTIONS_LIB@ @BOOST_SYSTEM_LIB@
-CPPFLAGS = @DEFS@ @CPPFLAGS@ @BOOST_CPPFLAGS@ -I$(srcdir) -I$(KaitaiDir) -I$(SQLiteCppDir) -I$(Blake2Dir) -I$(UtilDir) -I$(BaseDir)
+CPPFLAGS = @DEFS@ @CPPFLAGS@ @BOOST_CPPFLAGS@ -I$(KaitaiDir) -I$(SQLiteCppDir) -I$(Blake2Dir) -I$(UtilDir) -I$(BaseDir)
 CFLAGS   = @CFLAGS@ @SQLITE3_CFLAGS@ @PCAPPLUSPLUS_CFLAGS@
 CXXFLAGS = @CXXFLAGS@ @SQLITE3_CFLAGS@ @PCAPPLUSPLUS_CFLAGS@
 LDFLAGS  = @LDFLAGS@
@@ -17,13 +17,12 @@ VPATH    = .
 
 all: nanocap
 
-include $(KaitaiDir)Makefile.export
-include $(SQLiteCppDir)Makefile.export
-include $(Blake2Dir)Makefile.export
-include $(UtilDir)Makefile.export
-include $(BaseDir)Makefile.export
+include $(srcdir)/Makefile.deps
 
-nanocap: $(FINAL_OBJECTS)
+OBJECTS = nano.oo webserver.oo packet_handler.oo app.oo db.oo kaitai.oo SQLiteCpp-Exception.oo SQLiteCpp-Statement.oo SQLiteCpp-Database.oo SQLiteCpp-Transaction.oo SQLiteCpp-Column.oo SQLiteCpp-Backup.oo util.oo
+OBJECTS += blake2-ref-blake2b-ref.o
+
+nanocap: $(OBJECTS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(LDFLAGS) -o "$@" $^ $(LIBS)
 
 %.oo:
@@ -34,7 +33,7 @@ nanocap: $(FINAL_OBJECTS)
 
 clean:
 	rm -f nanocap
-	rm -f $(FINAL_OBJECTS)
+	rm -f $(OBJECTS)
 
 distclean: clean
 	rm -f Makefile config.log config.status

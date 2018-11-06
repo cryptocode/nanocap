@@ -94,4 +94,4 @@ autoconf
 rm -rf autom4te.cache
 
 # Update dependencies
-./build/find-deps > Makefile.deps
+./build/find-deps > src/Makefile.deps

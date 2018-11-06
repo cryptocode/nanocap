@@ -48,6 +48,11 @@ function get_deps_for_directory () {
 
 find . -type d | while IFS='' read -r directory; do
 	deps="$(get_deps_for_directory "${directory}")" || exit 1
+	deps="$(echo "${deps}" | "${ourDir}/rewrite-deps" "${directory}" '$(srcdir)/')"
 
-	echo "${deps}" | "${ourDir}/rewrite-deps" "${directory}" '$(srcdir)'
+	if [ -z "${deps}" ]; then
+		continue
+	fi
+
+	echo "${deps}"
 done
