@@ -7,7 +7,7 @@
 #include <shared.hpp>
 #include <config.hpp>
 #include <SQLiteCpp/SQLiteCpp.h>
-#include <json/json.hpp>
+#include <nlohmann-json/json.hpp>
 
 using json = nlohmann::json;
 
