@@ -1,5 +1,5 @@
 project(nanocap)
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 2.8)
 
 set(NANOCAP_GENERATE_PARSER OFF CACHE BOOL "If set, nanocurrency/protocol must be a submodule and Kaitai installed and on the path.")
 
