@@ -3,7 +3,7 @@ UTIL="nanocap"
 
 # This is the name of output files that should exist after configure 
 # procedures.
-BINS="nanocap"
+BINS=""
 
 # This lists the name of files that are required to exist
 REQS=""
@@ -43,9 +43,12 @@ UPDATED=""
 AFTER=""
 
 # Files matching these (space-seperated) patterns are deleted
-TMPS="build"
+TMPS="build aclocal"
 
 # Supply a path to upload the archive to after completion
 # The string "@@ARCHIVE_FILENAME@@" becomes the name of the
 # constructed archive
 UPLOAD_TO=''
+
+# Don't build this as part of release engineering
+PERFORM_NO_BUILD=1
