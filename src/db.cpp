@@ -13,7 +13,7 @@ std::error_code nanocap::db::destroy_capture_data()
 	std::error_code ec;
 	sqlite->exec("DELETE FROM packet");
 	sqlite->exec("DELETE FROM keepalive_host");
-	sqlite->exec("DELETE FROM vote_by_hash");
+	sqlite->exec("DELETE FROM vote");
 	sqlite->exec("DELETE FROM block_state");
 	sqlite->exec("DELETE FROM block_send");
 	sqlite->exec("DELETE FROM block_receive");
