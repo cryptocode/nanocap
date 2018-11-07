@@ -1,3 +1,6 @@
+var app_active_page = 'home';
+var app_spinner_started = false;
+
 /** Set up click handlers */
 function app_init()
 {
@@ -50,24 +53,26 @@ function app_capture_destroy()
 
 function on_page_home ()
 {
+	app_active_page = 'home';
 }
 
 function on_page_schema ()
 {
+	app_active_page = 'schema';
 	app_schema_show();
 }
 
 function on_page_config ()
 {
+	app_active_page = 'config';
 }
 
-var spinner_started = false;
 function app_show_spinner ()
 {
 	// This may be set to false before the timer starts
-	spinner_started = true;
+	app_spinner_started = true;
 	setTimeout(function() {
-		if (spinner_started) {			
+		if (app_spinner_started) {
 			$('#app_spinner').removeClass('d-none');
 		}
 	}, 500);
@@ -75,7 +80,7 @@ function app_show_spinner ()
 
 function app_hide_spinner ()
 {
-	spinner_started = false;
+	app_spinner_started = false;
 	$('#app_spinner').addClass('d-none');
 }
 

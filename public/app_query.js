@@ -25,6 +25,7 @@ function app_query_init()
 
 	// Execute initial query
 	app_get_query_and_execute();
+	history.pushState({"app_query": editor.getValue()}, null);
 }
 
 function app_get_query_and_execute()
@@ -33,7 +34,26 @@ function app_get_query_and_execute()
 	app_query_execute(query);
 }
 
-function app_query_table (header_cols, rows) {
+window.onpopstate = function(event) {
+	console.log('history', JSON.stringify(event));
+	if (event.state && event.state.app_query) {
+		editor.setValue(event.state.app_query);
+		app_get_query_and_execute();
+	}
+}
+
+function on_query_content_table (event, content_table, content_id)
+{
+	event.preventDefault();
+	console.log('history push', editor.getValue())
+	const id = 'Find ' + content_table + ' in ' + content_id;
+	history.pushState({"app_query": editor.getValue(), "id": id}, null);
+	editor.setValue(`select * from ${content_table} where id = ${content_id}`);
+	app_get_query_and_execute();
+}
+
+function app_query_table (header_cols, rows)
+{
 	return `
 		<table class="table table-sm">
 		  <thead class="table-active">
@@ -48,16 +68,23 @@ function app_query_table (header_cols, rows) {
 	`;
 }
 
-function app_query_header_col (name) {
+function app_query_header_col (name)
+{
 	return `<th scope="col">${name}</td>`;
 }
 
-function app_query_row (cols) {
+function app_query_row (cols)
+{
 	return `<tr>${cols}</tr>`;
 }
-function app_query_col (val, is_hash) {
+
+function app_query_col (val, is_hash, link)
+{
 	if (is_hash) {
-		return `<td><a href="https://www.nanode.co/block/${val}" target="_blank">${val}</td>`;
+		return `<td nowrap><span class="fas fa-external-link-alt" aria-hidden="true"></span> <a href="https://www.nanode.co/block/${val}" target="_blank">${val}</a></td>`;
+	}
+	else if (link) {
+		return `<td><a href="#" onclick="${link}">${val}</a></td>`;
 	}
 	else {
 		return `<td>${val}</td>`;
@@ -78,16 +105,33 @@ function app_query_execute(query_string)
 				$("#query_result").append('<h4>No matches found</h4>');
 			}
 			else {
-				console.log(res);
+				//console.log(res);
 				let header_cols = '';
 				for (const index in res.columns) {
 					header_cols += app_query_header_col(res.columns[index]);
 				}
 				let rows = '';
 				for (const row_index in res.rows) {
-					let cols = '';			
+					let cols = '';
+					let content_table = undefined;
+					let content_id = undefined;
 					for (const col_index in res.rows[row_index]) {
-						cols += app_query_col (res.rows[row_index][col_index], res.columns[col_index].toLowerCase() === 'hash');
+						let link = undefined;
+						const val = res.rows[row_index][col_index];
+						const colname = res.columns[col_index].toLowerCase();
+						if (colname == 'content_table') {
+							content_table = val;
+						}
+						else if (colname == 'content_id') {
+							content_id = val;
+						}
+						// Once we know both the content table- and id (in any order), add a navigation link to it
+						if (content_table && content_id) {
+							link = `on_query_content_table(event, '${content_table}', ${content_id});`;
+							content_table  = undefined;
+						}
+
+						cols += app_query_col (val, colname === 'hash', link);
 					}
 					rows += app_query_row (cols);
 					
@@ -100,7 +144,6 @@ function app_query_execute(query_string)
 		else {
 			app_hide_spinner();
 			app_show_alert('Query failed<p>'+res.error, 5000);
-			//console.log('Query failed', res);
 		}
 
 		$('#action_query').removeClass('disabled');
