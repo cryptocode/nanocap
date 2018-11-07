@@ -55,6 +55,7 @@ void nanocap::app::launch(int argc, char** argv)
 	catch(boost::program_options::error& e)
 	{
 		std::cerr << e.what() << std::endl;
+		std::exit(0);
 	}
 }
 

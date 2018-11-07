@@ -13,7 +13,7 @@ std::error_code nanocap::db::destroy_capture_data()
 	std::error_code ec;
 	sqlite->exec("DELETE FROM packet");
 	sqlite->exec("DELETE FROM keepalive_host");
-	sqlite->exec("DELETE FROM vote_by_hash");
+	sqlite->exec("DELETE FROM vote");
 	sqlite->exec("DELETE FROM block_state");
 	sqlite->exec("DELETE FROM block_send");
 	sqlite->exec("DELETE FROM block_receive");
@@ -37,7 +37,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS packet "
 				 "("
-				 	"id INTEGER NOT NULL, ipv INTEGER NOT NULL, msg_type INTEGER NOT NULL, version_using INTEGER, version_min INTEGER, block_type INTEGER, extensions INTEGER, "
+				 	"id INTEGER PRIMARY KEY, ipv INTEGER NOT NULL, msg_type INTEGER NOT NULL, version_using INTEGER, version_min INTEGER, block_type INTEGER, extensions INTEGER, "
 				 	"content_table TEXT DEFAULT NULL, content_id INTEGER DEFAULT NULL, srcip TEXT DEFAULT NULL, srcport INTEGER DEFAULT NULL, dstip TEXT DEFAULT NULL, dstport INTEGER DEFAULT NULL, "
 				 	"time TIMESTAMP DEFAULT CURRENT_TIMESTAMP, time_usec INTEGER DEFAULT 0"
 				 ")"
@@ -49,19 +49,19 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	// Hosts enlisted in a keepalive packet
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS keepalive_host "
-				 "(id INTEGER NOT NULL, packet_id INTEGER, address TEXT NOT NULL, port INTEGER NOT NULL, time TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+				 "(id INTEGER PRIMARY KEY, packet_id INTEGER, address TEXT NOT NULL, port INTEGER NOT NULL, time TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
 				 );
 	
 	// Table with a comma-separated list of vote-by-hash hahes for a given packet
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS vote "
-				 "(id INTEGER NOT NULL, packet_id INTEGER NOT NULL, content_table TEXT DEFAULT NULL, content_id INTEGER DEFAULT NULL, vote_count INTEGER DEFAULT 0, vbh INTEGER, account TEXT, signature TEXT, sequence INTEGER, hashes TEXT)"
+				 "(id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, content_table TEXT DEFAULT NULL, content_id INTEGER DEFAULT NULL, vote_count INTEGER DEFAULT 0, vbh INTEGER, account TEXT, signature TEXT, sequence INTEGER, hashes TEXT)"
 				 );
 	
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS block_state "
 				 "( "
-				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
 				 	"hash TEXT, account TEXT, previous TEXT, representative TEXT, balance TEXT, link TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
@@ -69,7 +69,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS block_send "
 				 "( "
-				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
 				 	"hash TEXT, previous TEXT, destination TEXT, balance TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
@@ -77,7 +77,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS block_receive "
 				 "( "
-				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
 				 	"hash TEXT, previous TEXT, source TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
@@ -85,7 +85,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS block_open "
 				 "( "
-				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
 				 	"hash TEXT, source TEXT, representative TEXT, account TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
@@ -93,7 +93,7 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS block_change "
 				 "( "
-				 	"id INTEGER NOT NULL, packet_id INTEGER NOT NULL, "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
 				 	"hash TEXT, previous TEXT, representative TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
