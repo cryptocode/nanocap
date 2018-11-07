@@ -31,7 +31,9 @@ docker run --net=host cryptocode/nanocap bin/nanocap --if
 
 ## Configure
 
-Before running nanocap, create `nanocap.config` and map it. This makes config changes persistent between docker runs. Replace `device_ip` with the IP from the above `nanocap --if` command.
+Before running nanocap, create `nanocap.config` on the host.
+
+Replace `device_ip` with the IP from the above `nanocap --if` command.
 
 ```
 {
@@ -54,7 +56,7 @@ Before running nanocap, create `nanocap.config` and map it. This makes config ch
 
 ## Capture
 
-Now we can map the config file and run nanocap:
+Map the config file and run nanocap:
 
 ```
 docker run --net=host \
@@ -62,7 +64,7 @@ docker run --net=host \
 	cryptocode/nanocap bin/nanocap
 ```
 
-Now visit http://localhost:7077
+Visit http://localhost:7077 to view/stop/restart capture and query packets.
 
 ## Import pcap files
 
@@ -73,6 +75,9 @@ docker run -p 7077:7077 \
 	cryptocode/nanocap bin/nanocap \
 	--pcap rep.pcap
 ```
+
+Visit http://localhost:7077 to view import progress and query packets.
+
 
 # Build from source
 
