@@ -411,9 +411,9 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 				stmt_block_state->bind(":id", id);
 				stmt_block_state->bind(":packet_id", packet_id);
 				stmt_block_state->bind(":hash", to_hex(hash_of(block)));
-				stmt_block_state->bind(":account", to_hex(block->account()));
+				stmt_block_state->bind(":account", pub_to_account(block->account()));
 				stmt_block_state->bind(":previous", to_hex(block->previous()));
-				stmt_block_state->bind(":representative", to_hex(block->representative()));
+				stmt_block_state->bind(":representative", pub_to_account(block->representative()));
 				stmt_block_state->bind(":balance", to_hex(block->balance()));
 				stmt_block_state->bind(":link", to_hex(block->link()));
 				stmt_block_state->bind(":signature", to_hex(block->signature()));
@@ -430,7 +430,7 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 				stmt_block_send->bind(":packet_id", packet_id);
 				stmt_block_send->bind(":hash", to_hex(hash_of(block)));
 				stmt_block_send->bind(":previous", to_hex(block->previous()));
-				stmt_block_send->bind(":destination", to_hex(block->destination()));
+				stmt_block_send->bind(":destination", pub_to_account(block->destination()));
 				stmt_block_send->bind(":balance", to_hex(block->balance()));
 				stmt_block_send->bind(":signature", to_hex(block->signature()));
 				stmt_block_send->bind(":work", static_cast<int64_t>(block->work()));
@@ -461,8 +461,8 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 				stmt_block_open->bind(":packet_id", packet_id);
 				stmt_block_open->bind(":hash", to_hex(hash_of(block)));
 				stmt_block_open->bind(":source", to_hex(block->source()));
-				stmt_block_open->bind(":representative", to_hex(block->representative()));
-				stmt_block_open->bind(":account", to_hex(block->account()));
+				stmt_block_open->bind(":representative", pub_to_account(block->representative()));
+				stmt_block_open->bind(":account", pub_to_account(block->account()));
 				stmt_block_open->bind(":signature", to_hex(block->signature()));
 				stmt_block_open->bind(":work", static_cast<int64_t>(block->work()));
 				stmt_block_open->exec();
@@ -477,7 +477,7 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 				stmt_block_change->bind(":packet_id", packet_id);
 				stmt_block_change->bind(":hash", to_hex(hash_of(block)));
 				stmt_block_change->bind(":previous", to_hex(block->previous()));
-				stmt_block_change->bind(":representative", to_hex(block->representative()));
+				stmt_block_change->bind(":representative", pub_to_account(block->representative()));
 				stmt_block_change->bind(":signature", to_hex(block->signature()));
 				stmt_block_change->bind(":work", static_cast<int64_t>(block->work()));
 				stmt_block_change->exec();

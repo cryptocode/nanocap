@@ -23,7 +23,7 @@ add_definitions(-DKS_STR_ENCODING_NONE)
 
 # Include directories
 include_directories (${CMAKE_BINARY_DIR}/src)
-include_directories (${Boost_INCLUDE_DIRS})
+#include_directories (${Boost_INCLUDE_DIRS})
 
 # Regenerate parser. The nanocurrency/protocol repository must be
 # added as a submodule when this flag is active.
@@ -79,7 +79,7 @@ add_executable(nanocap
 	src/util/ctpl_stl.h src/util/termcolor.hpp
 	)
 
-target_link_libraries(nanocap blake2b sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus ${CMAKE_DL_LIBS})
+target_link_libraries(nanocap blake2b sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::boost_multiprecision CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus ${CMAKE_DL_LIBS})
 
 if (APPLE)
 	target_link_libraries(nanocap "-framework CoreFoundation")

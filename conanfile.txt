@@ -5,6 +5,8 @@ boost_system/1.66.0@bincrafters/stable
 boost_program_options/1.66.0@bincrafters/stable
 boost_filesystem/1.66.0@bincrafters/stable
 boost_asio/1.66.0@bincrafters/stable
+boost_multiprecision/1.66.0@bincrafters/stable
+
 
 [options]
 libpcap:shared=False
