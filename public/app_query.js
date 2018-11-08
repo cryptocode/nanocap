@@ -81,7 +81,7 @@ function app_query_row (cols)
 function app_query_col (val, is_hash, link)
 {
 	if (is_hash) {
-		return `<td nowrap><span class="fas fa-external-link-alt" aria-hidden="true"></span> <a href="https://www.nanode.co/block/${val}" target="_blank">${val}</a></td>`;
+		return `<td nowrap><i class="fas fa-external-link-alt" aria-hidden="true"></i> <a href="https://www.nanode.co/block/${val}" target="_blank">${val}</a></td>`;
 	}
 	else if (link) {
 		return `<td><a href="#" onclick="${link}">${val}</a></td>`;
