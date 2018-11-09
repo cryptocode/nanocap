@@ -7,8 +7,8 @@ export default class App {
     constructor () {
         this.active_page = 'home';
         this.spinner_started = false;
-        this.status_interval = 1300;
-        this.packet_count_interval = 1700;
+        this.status_interval = 1200;
+        this.packet_count_interval = 2000;
         this.common = new Common(this);
         this.query = new Query(this);
         this.schema = new Schema(this);
@@ -157,19 +157,21 @@ export default class App {
                     }
                 }
             }
-            // If the nanocap process has been down but is now back, reset packecount interval
-            if (this.status_interval > 1300)
+            // If the nanocap process has been down but is now back, reset packecount interval as well.
+            if (this.status_interval > 1200) {
                 this.packet_count_interval = 1700;
+            }
 
-            this.status_interval = 1300;
+            this.status_interval = 1200;
             $('#status_network').addClass('d-none');
         })
         .fail((jqXHR, textStatus, errorThrown) => {
                 $('#status_network').removeClass('d-none');
-                // The status call is cheap so we don't back off more than to 3 secs to give
-                // quick status when the network/process is available again.
-                if (this.status_interval < 3000)
+                // The status call is cheap so we don't back off more than to 3 secs to give quick
+                // feedback when the network/process is available again.
+                if (this.status_interval < 3000) {
                     this.status_interval *= 2;
+                }
             })
         .always(() => {});
 
@@ -188,11 +190,14 @@ export default class App {
             $("#packet_status").empty();
 
             for (const i in data) {
-                let entry = template.replace('TYPE', this.msg_type_str(data[i].type)).replace('COUNT', data[i].count.toString());
+                let entry = template.replace(
+                    'TYPE',
+                    this.msg_type_str(data[i].type)).replace('COUNT', data[i].count.toString());
+
                 $("#packet_status").append(entry);
             }
 
-            this.packet_count_interval = 1700;
+            this.packet_count_interval = 2000;
         })
         .fail((jqXHR, textStatus, errorThrown) => {
             // Back off exponentially up to 1 minute
