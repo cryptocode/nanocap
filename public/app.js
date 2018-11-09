@@ -1,221 +1,209 @@
-var app_active_page = 'home';
-var app_spinner_started = false;
-var app_status_interval = 1300;
-var app_packet_count_interval = 1700;
+import Common from './app_common.js';
+import Query from './app_query.js';
+import Schema from './app_schema.js';
 
-/** Set up click handlers */
-function app_init()
-{
-	$('#nav_page_home a').on('click', function (e) {
-		e.preventDefault()
-		show_page('page_home');
-	});
+/** Nanocap UI */
+export default class App {
+    constructor () {
+        this.active_page = 'home';
+        this.spinner_started = false;
+        this.status_interval = 1300;
+        this.packet_count_interval = 1700;
+        this.common = new Common(this);
+        this.query = new Query(this);
+        this.schema = new Schema(this);
+    }
 
-	$('#nav_page_config a').on('click', function (e) {
-		e.preventDefault()
-		show_page('page_config');
-	});
+    /** Set up click handlers and initialize modules */
+    init() {
+        console.log('Nanocap Version', this.common.version);
 
-	$('#nav_page_schema a').on('click', function (e) {
-		e.preventDefault()
-		show_page('page_schema');
-	});
+        $('#nav_page_home a').on('click', (e) => {
+            e.preventDefault()
+            this.show_page('page_home');
+        });
 
-	$('#action_toggle_capture').click(function() {
-		app_capture_toggle();
-	});
+        $('#nav_page_config a').on('click', (e) => {
+            e.preventDefault()
+            this.show_page('page_config');
+        });
 
-	$('#action_destroy_capture').click(function() {
-		app_capture_destroy();
-	});
+        $('#nav_page_schema a').on('click', (e) => {
+            e.preventDefault()
+            this.show_page('page_schema');
+        });
 
-	app_query_init();
-	app_schema_init();
+        $('#action_toggle_capture').click(() => {
+            this.capture_toggle();
+        });
+
+        $('#action_destroy_capture').click(() => {
+            this.capture_destroy();
+        });
+
+        this.query.init();
+        this.schema.init();
+        this.update_status();
+        this.update_packet_counts();
+    }
+
+    /** Start or stop live capture */
+    capture_toggle() {
+        $.getJSON("api/v1/capture/toggle", (data) => {
+        });
+    }
+
+    /** Destroy all capture data */
+    capture_destroy() {
+        this.show_spinner();
+        this.hide_alert();
+
+        $.getJSON("api/v1/capture/destroy", (data) => {
+            this.hide_spinner();
+            this.show_alert('All capture data has been removed', 2000);
+
+        });
+    }
+
+    on_page_home () {
+        this.active_page = 'home';
+    }
+
+    on_page_schema () {
+        this.active_page = 'schema';
+        this.schema.display();
+    }
+
+    on_page_config () {
+        this.active_page = 'config';
+    }
+
+    show_spinner () {
+        // This may be set to false before the timer starts
+        this.spinner_started = true;
+        setTimeout(() => {
+            if (this.spinner_started) {
+                $('#app_spinner').removeClass('d-none');
+            }
+        }, 500);
+    }
+
+    hide_spinner () {
+        this.spinner_started = false;
+        $('#app_spinner').addClass('d-none');
+    }
+
+    /** Show \error_message for the duration of \visible_time_ms */
+    show_alert (error_message, visible_time_ms) {
+        $('#app_alert_text').empty();
+        $('#app_alert_text').append(error_message);
+        $('#app_alert_area').removeClass('d-none');
+
+        setTimeout(() => {
+            this.hide_alert();
+        }, visible_time_ms ? visible_time_ms : 4000);
+    }
+
+    hide_alert () {
+        $('#app_alert_area').addClass('d-none');
+    }
+
+    /** Show the "page_container" child div with the given id */
+    show_page (page_id) {
+        $('#page_container').children('div').each((index) => {
+            const div = $('#page_container').children().eq(index);
+            const div_id = div.attr("id");
+
+            if (div_id === page_id) {
+                $('#'+div_id).removeClass('d-none');
+                $('#nav_'+div_id).addClass('active');
+                eval('this.on_' + page_id + '();');
+            }
+            else {
+                $('#'+div_id).addClass('d-none');
+                $('#nav_'+div_id).removeClass('active');
+            }
+        });
+    }
+
+    dec2hex(i) {
+       return (i+0x100).toString(16).substr(-2).toUpperCase();
+    }
+
+    /** Convert msg_type to string */
+    msg_type_str(id) {
+        const text = Nano.EnumMsgtype[id];
+        if (text) {
+            return '<small>0x' + this.dec2hex(id) + ' - ' + text.toLowerCase() + '</small>';
+        }
+        else {
+            return "unknown";
+        }
+    }
+
+    update_status () {
+        $.getJSON("api/v1/status")
+        .done((data) => {
+            if (data) {
+                // The html file contain elements with id="status_<name>""
+                for (const name in data) {
+                    if (data[name]) {
+                        $('#status_'+name).removeClass('d-none');
+                        $('#status_'+name+"_inverted").addClass('d-none');
+                    }
+                    else {
+                        $('#status_'+name).addClass('d-none');
+                        $('#status_'+name+"_inverted").removeClass('d-none');
+                    }
+                }
+            }
+            // If the nanocap process has been down but is now back, reset packecount interval
+            if (this.status_interval > 1300)
+                this.packet_count_interval = 1700;
+
+            this.status_interval = 1300;
+            $('#status_network').addClass('d-none');
+        })
+        .fail((jqXHR, textStatus, errorThrown) => {
+                $('#status_network').removeClass('d-none');
+                // The status call is cheap so we don't back off more than to 3 secs to give
+                // quick status when the network/process is available again.
+                if (this.status_interval < 3000)
+                    this.status_interval *= 2;
+            })
+        .always(() => {});
+
+        if (this.status_interval) {
+            setTimeout(() => this.update_status(), this.status_interval);
+        }
+    }
+
+    /** Update per-type packet count */
+    update_packet_counts() {
+        const template = '<li class="list-group-item py-1 d-flex justify-content-between align-items-center">'+
+            'TYPE<span class="badge badge-primary">COUNT</span></li>';
+
+        $.getJSON("api/v1/count/per-type")
+        .done((data) => {
+            $("#packet_status").empty();
+
+            for (const i in data) {
+                let entry = template.replace('TYPE', this.msg_type_str(data[i].type)).replace('COUNT', data[i].count.toString());
+                $("#packet_status").append(entry);
+            }
+
+            this.packet_count_interval = 1700;
+        })
+        .fail((jqXHR, textStatus, errorThrown) => {
+            // Back off exponentially up to 1 minute
+            if (this.packet_count_interval < 60000)
+                this.packet_count_interval *= 2;
+        })
+        .always(() => {});
+
+        if (this.packet_count_interval) {
+            setTimeout(() => this.update_packet_counts(), this.packet_count_interval);
+        }
+    }
 }
 
-/** Start or stop live capture */
-function app_capture_toggle()
-{
-	$.getJSON("api/v1/capture/toggle", function(data) {
-	});
-}
-
-/** Destroy all capture data */
-function app_capture_destroy()
-{
-	app_show_spinner();
-	app_hide_alert();
-
-	$.getJSON("api/v1/capture/destroy", function(data) {
-		app_hide_spinner();
-		app_show_alert('All capture data has been removed', 2000);
-
-	});
-}
-
-function on_page_home ()
-{
-	app_active_page = 'home';
-}
-
-function on_page_schema ()
-{
-	app_active_page = 'schema';
-	app_schema_show();
-}
-
-function on_page_config ()
-{
-	app_active_page = 'config';
-}
-
-function app_show_spinner ()
-{
-	// This may be set to false before the timer starts
-	app_spinner_started = true;
-	setTimeout(function() {
-		if (app_spinner_started) {
-			$('#app_spinner').removeClass('d-none');
-		}
-	}, 500);
-}
-
-function app_hide_spinner ()
-{
-	app_spinner_started = false;
-	$('#app_spinner').addClass('d-none');
-}
-
-/** Show \error_message for \visible_time_ms milliseconds*/
-function app_show_alert (error_message, visible_time_ms)
-{
-	$('#app_alert_text').empty();
-	$('#app_alert_text').append(error_message);
-	$('#app_alert_area').removeClass('d-none');
-
-	setTimeout(function() {
-		app_hide_alert();
-	}, visible_time_ms ? visible_time_ms : 4000);
-}
-
-function app_hide_alert ()
-{
-	$('#app_alert_area').addClass('d-none');
-}
-
-/** Show the "page_container" child div with the given id */
-function show_page (page_id)
-{
-	$('#page_container').children('div').each(function(index) {
-		const div = $('#page_container').children().eq(index);
-		const div_id = div.attr("id");
-
-	    if (div_id === page_id) {
-	    	$('#'+div_id).removeClass('d-none');
-	    	$('#nav_'+div_id).addClass('active');
-	    	eval('on_' + page_id + '();');
-	    }
-	    else {
-	    	$('#'+div_id).addClass('d-none');
-	    	$('#nav_'+div_id).removeClass('active');
-	    }
-	});
-}
-
-function dec2hex(i) {
-   return (i+0x100).toString(16).substr(-2).toUpperCase();
-}
-
-/** Convert msg_type to string */
-function msg_type_str(id)
-{
-	const text = Nano.EnumMsgtype[id];
-	if (text) {
-		return '<small>0x' + dec2hex(id) + ' - ' + text.toLowerCase() + '</small>';
-	}
-	else {
-		return "unknown";
-	}
-}
-
-function app_update_status ()
-{
-	$.getJSON("api/v1/status", function(data) {
-		if (data) {
-			// The html file contain elements with id="status_<name>""
-			for (var name in data) {
-    			if (data[name]) {
-    				$('#status_'+name).removeClass('d-none');
-    				$('#status_'+name+"_inverted").addClass('d-none');
-    			}
-    			else {
-    				$('#status_'+name).addClass('d-none');
-    				$('#status_'+name+"_inverted").removeClass('d-none');
-    			}
-			}
-		}
-	})
-	.done(function() {
-		// If the nanocap process has been down, but now back up, reset packecount interval as well
-		if (app_status_interval > 1300)
-			app_packet_count_interval = 1700;
-
-		app_status_interval = 1300;
-		$('#status_network').addClass('d-none');
-	})
-	.fail(function(jqXHR, textStatus, errorThrown) 
-		{
-			$('#status_network').removeClass('d-none');
-			// The status call is cheap so we don't back up more than to 3 secs to give
-			// quick status when the network/process is available again.
-			if (app_status_interval < 3000)
-				app_status_interval*=2;
-		})
-	.always(function() { });
-
-	if (app_status_interval) {
-		setTimeout(app_update_status, app_status_interval);
-	}	
-}
-
-/** Update per-type packet count */
-function app_update_packet_counts()
-{
-	// Update packet counts
-	const template = '<li class="list-group-item py-1 d-flex justify-content-between align-items-center">'+
-	    'TYPE<span class="badge badge-primary">COUNT</span></li>';
-
-	$.getJSON("api/v1/count/per-type", function(data) {
-	 	
-	 	$("#packet_status").empty();
-
-	 	for (const i in data) {
-	 		let entry = template.replace('TYPE', msg_type_str(data[i].type)).replace('COUNT', data[i].count.toString());
-	 		$("#packet_status").append(entry);
-	 	}
-	 	
-	})
-	.done(function() { app_packet_count_interval = 1700; })
-	.fail(function(jqXHR, textStatus, errorThrown) { 
-		// Back off exponentially up to 1 minute
-		if (app_packet_count_interval < 60000)
-			app_packet_count_interval *= 2;
-	})
-	.always(function() { });
-
-	if (app_packet_count_interval) {
-		setTimeout(app_update_packet_counts, app_packet_count_interval);
-	}	
-}
-
-function update_count(interval)
-{
-	$.getJSON("api/v1/count/packet", function(data)
-	{
-		$("#packet_count").html(data.count);
-	});
-
-	if (interval) {
-		setTimeout(update_count, interval);
-	}
-}

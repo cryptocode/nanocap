@@ -1,5 +1,6 @@
 export default class Common {
-	constructor() {
-		this.version = "1.0";
-	}
+    constructor(app) {
+        this.app = app;
+        this.version = "1.0";
+    }
 }
