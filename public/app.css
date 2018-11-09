@@ -1,4 +1,8 @@
 /* nanocap styles */
+#editor {
+    min-height: 160px;
+}
+
 .scrollable-table {
     overflow-x: auto;
 }

@@ -140,18 +140,35 @@ void nanocap::webserver::start()
 			{
 				auto length = ifs->tellg();
 				ifs->seekg(0, std::ios::beg);
-				
+
+				if (path.extension().string()  == ".html")
+				{
+					header.emplace("Content-Type", "text/html");
+				}
+				else if (path.extension().string()  == ".css")
+				{
+					header.emplace("Content-Type", "text/css");
+				}
+				else if (path.extension().string()  == ".js")
+				{
+					header.emplace("Content-Type", "application/javascript");
+				}
+				else if (path.extension().string()  == ".png")
+				{
+					header.emplace("Content-Type", "image/png");
+				}
+
 				header.emplace("Content-Length", to_string(length));
 				response->write(header);
 				
-				// Trick to define a recursive function within this scope (for example purposes)
+				// Serve files; set mime type for scripts
 				class FileServer
 				{
 				public:
 					static void read_and_send(const std::shared_ptr<HttpServer::Response> &response, const std::shared_ptr<std::ifstream> &ifs)
 					{
 						// Read and send 128 KB at a time
-						static std::vector<char> buffer(131072); // Safe when server is running on one thread
+						static std::vector<char> buffer(131072);
 						std::streamsize read_length;
 						if((read_length = ifs->read(&buffer[0], static_cast<std::streamsize>(buffer.size())).gcount()) > 0)
 						{
@@ -176,7 +193,7 @@ void nanocap::webserver::start()
 				FileServer::read_and_send(response, ifs);
 			}
 			else
-				throw std::invalid_argument("could not read file");
+				throw std::invalid_argument("Could not read file");
 		}
 		catch(const std::exception &e)
 		{

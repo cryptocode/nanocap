@@ -1,5 +1,7 @@
 var app_active_page = 'home';
 var app_spinner_started = false;
+var app_status_interval = 1300;
+var app_packet_count_interval = 1700;
 
 /** Set up click handlers */
 function app_init()
@@ -136,7 +138,7 @@ function msg_type_str(id)
 	}
 }
 
-function app_update_status (interval)
+function app_update_status ()
 {
 	$.getJSON("api/v1/status", function(data) {
 		if (data) {
@@ -152,15 +154,32 @@ function app_update_status (interval)
     			}
 			}
 		}
-	});
+	})
+	.done(function() {
+		// If the nanocap process has been down, but now back up, reset packecount interval as well
+		if (app_status_interval > 1300)
+			app_packet_count_interval = 1700;
 
-	if (interval) {
-		setTimeout(app_update_status, interval, interval);
+		app_status_interval = 1300;
+		$('#status_network').addClass('d-none');
+	})
+	.fail(function(jqXHR, textStatus, errorThrown) 
+		{
+			$('#status_network').removeClass('d-none');
+			// The status call is cheap so we don't back up more than to 3 secs to give
+			// quick status when the network/process is available again.
+			if (app_status_interval < 3000)
+				app_status_interval*=2;
+		})
+	.always(function() { });
+
+	if (app_status_interval) {
+		setTimeout(app_update_status, app_status_interval);
 	}	
 }
 
 /** Update per-type packet count */
-function app_update_packet_counts(interval)
+function app_update_packet_counts()
 {
 	// Update packet counts
 	const template = '<li class="list-group-item py-1 d-flex justify-content-between align-items-center">'+
@@ -175,10 +194,17 @@ function app_update_packet_counts(interval)
 	 		$("#packet_status").append(entry);
 	 	}
 	 	
-	});
+	})
+	.done(function() { app_packet_count_interval = 1700; })
+	.fail(function(jqXHR, textStatus, errorThrown) { 
+		// Back off exponentially up to 1 minute
+		if (app_packet_count_interval < 60000)
+			app_packet_count_interval *= 2;
+	})
+	.always(function() { });
 
-	if (interval) {
-		setTimeout(app_update_packet_counts, interval, interval);
+	if (app_packet_count_interval) {
+		setTimeout(app_update_packet_counts, app_packet_count_interval);
 	}	
 }
 

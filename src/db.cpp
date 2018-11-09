@@ -8,21 +8,6 @@
 #include <boost/endian/conversion.hpp>
 #include <sqlite3.h>
 
-std::error_code nanocap::db::destroy_capture_data()
-{
-	std::error_code ec;
-	sqlite->exec("DELETE FROM packet");
-	sqlite->exec("DELETE FROM keepalive_host");
-	sqlite->exec("DELETE FROM vote");
-	sqlite->exec("DELETE FROM block_state");
-	sqlite->exec("DELETE FROM block_send");
-	sqlite->exec("DELETE FROM block_receive");
-	sqlite->exec("DELETE FROM block_open");
-	sqlite->exec("DELETE FROM block_change");
-	
-	return ec;
-}
-
 nanocap::db::db(nanocap::app & app) : app (app)
 {
 	std::cout << "Using database " << app.get_config().db << " (sqlite version " << SQLite::getLibVersion() << ")" << std::endl << std::endl;
@@ -140,6 +125,28 @@ std::error_code nanocap::db::flush()
 	std::lock_guard<std::mutex> guard (db_mutex);
 	primary_tx->commit();
 	primary_tx = std::make_unique<SQLite::Transaction> (*sqlite);
+	return ec;
+}
+
+std::error_code nanocap::db::destroy_capture_data()
+{
+	std::error_code ec;
+	sqlite->exec("DELETE FROM packet");
+	flush();
+	sqlite->exec("DELETE FROM keepalive_host");
+	flush();
+	sqlite->exec("DELETE FROM vote");
+	flush();
+	sqlite->exec("DELETE FROM block_state");
+	flush();
+	sqlite->exec("DELETE FROM block_send");
+	flush();
+	sqlite->exec("DELETE FROM block_receive");
+	flush();
+	sqlite->exec("DELETE FROM block_open");
+	flush();
+	sqlite->exec("DELETE FROM block_change");
+	flush();
 	return ec;
 }
 
@@ -324,11 +331,10 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 		stmt_vote->bind(":vbh", 2);
 		stmt_vote->bind(":vote_count", 0);
 	}
-	
-	// Common fields
+
 	if (msg.common())
 	{
-		stmt_vote->bind(":account", to_hex(msg.common()->account()));
+		stmt_vote->bind(":account", pub_to_account(msg.common()->account()));
 		stmt_vote->bind(":signature", to_hex(msg.common()->signature()));
 		stmt_vote->bind(":sequence", static_cast<int64_t>(msg.common()->sequence()));
 	}

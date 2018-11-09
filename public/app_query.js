@@ -78,17 +78,23 @@ function app_query_row (cols)
 	return `<tr>${cols}</tr>`;
 }
 
-function app_query_col (val, is_hash, link)
+function app_query_col (val, is_hash, link, hover)
 {
+	let col = `<td nowrap`;
+	if (hover) {
+		col += ` title="${hover}"`;
+	}
+
 	if (is_hash) {
-		return `<td nowrap><i class="fas fa-external-link-alt" aria-hidden="true"></i> <a href="https://www.nanode.co/block/${val}" target="_blank">${val}</a></td>`;
+		col += `><i class="fas fa-external-link-alt" aria-hidden="true"></i> <a href="https://www.nanode.co/block/${val}" target="_blank">${val}</a></td>`;
 	}
 	else if (link) {
-		return `<td><a href="#" onclick="${link}">${val}</a></td>`;
+		col += `><a href="#" onclick="${link}">${val}</a></td>`;
 	}
 	else {
-		return `<td>${val}</td>`;
+		col += `>${val}</td>`;
 	}
+	return col;
 }
 
 /** Execute query and populate result table */
@@ -117,7 +123,8 @@ function app_query_execute(query_string)
 					let content_id = undefined;
 					for (const col_index in res.rows[row_index]) {
 						let link = undefined;
-						const val = res.rows[row_index][col_index];
+						let hover = undefined;
+						let val = res.rows[row_index][col_index];
 						const colname = res.columns[col_index].toLowerCase();
 						if (colname == 'content_table') {
 							content_table = val;
@@ -125,13 +132,23 @@ function app_query_execute(query_string)
 						else if (colname == 'content_id') {
 							content_id = val;
 						}
+						else if (colname == 'extensions' || colname == 'msg_type') {
+							val = '0x'+Number(val).toString(16);
+						}
+						else if (colname == 'time') {
+							hover = val;
+							var dt = new Date(0);
+							dt.setUTCSeconds(Number(val));
+							val = moment(dt).format('MMM DD HH:mm');							
+						}
+
 						// Once we know both the content table- and id (in any order), add a navigation link to it
 						if (content_table && content_id) {
 							link = `on_query_content_table(event, '${content_table}', ${content_id});`;
 							content_table  = undefined;
 						}
 
-						cols += app_query_col (val, colname === 'hash', link);
+						cols += app_query_col (val, colname === 'hash', link, hover);
 					}
 					rows += app_query_row (cols);
 					
@@ -148,5 +165,8 @@ function app_query_execute(query_string)
 
 		$('#action_query').removeClass('disabled');
 
-	});
+	})
+	.done(function() { console.log('json', "success"); })
+	.fail(function(jqXHR, textStatus, errorThrown) { console.log('json', "error", jqXHR, textStatus, errorThrown); })
+	.always(function() { console.log('json', "complete"); });	
 }
