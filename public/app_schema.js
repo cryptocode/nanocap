@@ -5,6 +5,10 @@ export default class Schema {
     }
 
     init() {
+        this.app.router.on('/schema', (params) => {
+            this.display();
+            this.app.show_page('page_schema');
+        }).resolve();
     }
 
     table (name, rows) {
@@ -38,7 +42,7 @@ export default class Schema {
     }
 
     display() {
-        $.getJSON("api/v1/schema", (schema) => {
+        $.getJSON("/api/v1/schema", (schema) => {
             if (schema) {
                 let html =
                 `

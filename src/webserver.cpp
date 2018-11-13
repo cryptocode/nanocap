@@ -119,10 +119,16 @@ void nanocap::webserver::start()
 	// Serve static resources
 	server.default_resource["GET"] = [](std::shared_ptr<HttpServer::Response> response, std::shared_ptr<HttpServer::Request> request)
 	{
+		auto web_root_path = boost::filesystem::canonical("public");
+		auto path = web_root_path / request->path;
+
 		try
 		{
-			auto web_root_path = boost::filesystem::canonical("public");
-			auto path = boost::filesystem::canonical(web_root_path / request->path);
+			// We're an SPA so all unknown paths should load index.html
+			if (!boost::filesystem::exists(path))
+			{
+				path = boost::filesystem::canonical(web_root_path);
+			}
 			
 			// Check if path is within web_root_path
 			if(std::distance(web_root_path.begin(), web_root_path.end()) > std::distance(path.begin(), path.end()) ||
@@ -197,7 +203,7 @@ void nanocap::webserver::start()
 		}
 		catch(const std::exception &e)
 		{
-			response->write(SimpleWeb::StatusCode::client_error_bad_request, "Could not open path " + request->path + ": " + e.what());
+			response->write(SimpleWeb::StatusCode::client_error_bad_request, "Could not open path " + path.string() + ": " + e.what());
 		}
 	};
 

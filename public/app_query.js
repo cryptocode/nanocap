@@ -6,10 +6,8 @@ export default class Query {
         this.app = app;
     }
 
-    /** Initialize the query module */
     init() {
         editor = ace.edit("editor");
-        //editor.setTheme("ace/theme/github");
         editor.renderer.setShowGutter(false);
         editor.renderer.setShowPrintMargin(false);
         editor.setOptions({highlightActiveLine: false});
@@ -20,18 +18,45 @@ export default class Query {
             name: "executeQuery",
             bindKey: {win: "Ctrl-Alt-e", mac: "Command-e"},
             exec: (editor) => {
-                this.get_query_and_execute();
+                this.app.router.navigate(`/query/${btoa(editor.getValue())}`);
             }
         })
 
         // Query button
         $('#action_query').click(() => {
-            this.get_query_and_execute();
+            this.app.router.navigate(`/query/${btoa(editor.getValue())}`);
         });
 
-        // Execute initial query
-        this.get_query_and_execute();
-        history.pushState({"app_query": editor.getValue()}, null);
+        // Query page
+        this.app.router.on(`/query`, (params) => {
+            this.app.show_page('page_home');
+        }).resolve();
+
+        // Execute the given query. The query is a base64 encoded parameter,
+        // allowing the to be bookmarked.
+        this.app.router.on('/query/:query', (params) => {
+            editor.setValue(`${atob(params.query)}`);
+            this.get_query_and_execute();
+            this.app.show_page('page_home');
+        }).resolve();
+
+        // Query top-N packets
+        this.app.router.on('/packets/:count', (params) => {
+            editor.setValue(`select * from packet limit ${params.count}`);
+            this.get_query_and_execute();
+            this.app.show_page('page_home');
+        }).resolve();
+
+        // Query votes
+        this.app.router.on('/:table/:id', (params) => {
+            editor.setValue(`select * from ${params.table} where id=${params.id}`);
+            this.get_query_and_execute();
+            this.app.show_page('page_home');
+        }).resolve();
+    }
+
+    packetoverview() {
+        this.app.router.navigate(`/packets/50`);
     }
 
     get_query_and_execute() {
@@ -40,11 +65,7 @@ export default class Query {
 
     on_query_content_table (self, event, content_table, content_id) {
         event.preventDefault();
-        // console.log('history push', editor.getValue())
-        const id = 'Find ' + content_table + ' in ' + content_id;
-        history.pushState({"app_query": editor.getValue(), "id": id}, null);
-        editor.setValue(`select * from ${content_table} where id = ${content_id}`);
-        this.get_query_and_execute();
+        this.app.router.navigate(`/${content_table}/${content_id}`);
     }
 
     table (header_cols, rows) {
@@ -94,7 +115,7 @@ export default class Query {
         this.app.hide_alert();
 
         $('#action_query').addClass('disabled');
-        $.getJSON("api/v1/capture/query", {query: query_string}, (res) => {
+        $.getJSON("/api/v1/capture/query", {query: query_string}, (res) => {
             if (res && !res.error) {
                 if (res.rows && res.rows.length === 0) {
                     $("#query_result").empty();
@@ -161,13 +182,5 @@ export default class Query {
         .done(() => {})
         .fail((jqXHR, textStatus, errorThrown) => { console.log('json', "error", jqXHR, textStatus, errorThrown); })
         .always(() => {});
-    }
-}
-
-window.onpopstate = (event) => {
-    console.log('history', JSON.stringify(event));
-    if (event.state && event.state.app_query) {
-        editor.setValue(event.state.app_query);
-        window.nanocap.query.get_query_and_execute();
     }
 }

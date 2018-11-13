@@ -1,6 +1,8 @@
-import Common from './app_common.js';
-import Query from './app_query.js';
-import Schema from './app_schema.js';
+import Common from '/app_common.js';
+import Query from '/app_query.js';
+import Schema from '/app_schema.js';
+import Config from '/app_config.js';
+import Router from '/app_router.js';
 
 /** Nanocap UI */
 export default class App {
@@ -9,29 +11,22 @@ export default class App {
         this.spinner_started = false;
         this.status_interval = 1200;
         this.packet_count_interval = 2000;
+        this.router = new Router();
         this.common = new Common(this);
         this.query = new Query(this);
+        this.config = new Config(this);
         this.schema = new Schema(this);
     }
 
-    /** Set up click handlers and initialize modules */
+    /** Set up click handlers and initialize components. This is called after
+    the page is fully loaded. */
     init() {
         console.log('Nanocap Version', this.common.version);
 
-        $('#nav_page_home a').on('click', (e) => {
-            e.preventDefault()
-            this.show_page('page_home');
-        });
-
-        $('#nav_page_config a').on('click', (e) => {
-            e.preventDefault()
-            this.show_page('page_config');
-        });
-
-        $('#nav_page_schema a').on('click', (e) => {
-            e.preventDefault()
-            this.show_page('page_schema');
-        });
+        // Home
+        this.router.on('/', (params) => {
+            this.query.packetoverview();
+        }).resolve();
 
         $('#action_toggle_capture').click(() => {
             this.capture_toggle();
@@ -43,13 +38,17 @@ export default class App {
 
         this.query.init();
         this.schema.init();
+        this.config.init();
+
         this.update_status();
         this.update_packet_counts();
+
+        this.router.navigate('/'+window.location.pathname);
     }
 
     /** Start or stop live capture */
     capture_toggle() {
-        $.getJSON("api/v1/capture/toggle", (data) => {
+        $.getJSON("/api/v1/capture/toggle", (data) => {
         });
     }
 
@@ -58,7 +57,7 @@ export default class App {
         this.show_spinner();
         this.hide_alert();
 
-        $.getJSON("api/v1/capture/destroy", (data) => {
+        $.getJSON("/api/v1/capture/destroy", (data) => {
             this.hide_spinner();
             this.show_alert('All capture data has been removed', 2000);
 
@@ -66,16 +65,12 @@ export default class App {
     }
 
     on_page_home () {
-        this.active_page = 'home';
     }
 
     on_page_schema () {
-        this.active_page = 'schema';
-        this.schema.display();
     }
 
     on_page_config () {
-        this.active_page = 'config';
     }
 
     show_spinner () {
@@ -110,6 +105,8 @@ export default class App {
 
     /** Show the "page_container" child div with the given id */
     show_page (page_id) {
+        if (this.active_page == page_id)
+            return;
         $('#page_container').children('div').each((index) => {
             const div = $('#page_container').children().eq(index);
             const div_id = div.attr("id");
@@ -117,6 +114,7 @@ export default class App {
             if (div_id === page_id) {
                 $('#'+div_id).removeClass('d-none');
                 $('#nav_'+div_id).addClass('active');
+                this.active_page = page_id;
                 eval('this.on_' + page_id + '();');
             }
             else {
@@ -142,7 +140,7 @@ export default class App {
     }
 
     update_status () {
-        $.getJSON("api/v1/status")
+        $.getJSON("/api/v1/status")
         .done((data) => {
             if (data) {
                 // The html file contain elements with id="status_<name>""
@@ -185,7 +183,7 @@ export default class App {
         const template = '<li class="list-group-item py-1 d-flex justify-content-between align-items-center">'+
             'TYPE<span class="badge badge-primary">COUNT</span></li>';
 
-        $.getJSON("api/v1/count/per-type")
+        $.getJSON("/api/v1/count/per-type")
         .done((data) => {
             $("#packet_status").empty();
 
