@@ -29,6 +29,11 @@ export default class Query {
 
         // Query page
         this.app.router.on(`/query`, (params) => {
+            // Default query if this is a page refresh on /query
+            if (editor.getValue() === '') {
+                editor.setValue(`select * from packet limit 50`);
+                this.get_query_and_execute();
+            }          
             this.app.show_page('page_home');
         }).resolve();
 

@@ -13,7 +13,7 @@ export default class Schema {
 
     table (name, rows) {
         return `
-            <h3>${name}</h3>
+            <h4>${name}</h4>
             <table class="table table-sm">
               <thead class="table-active">
                 <tr>

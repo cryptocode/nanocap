@@ -93,7 +93,7 @@ export default class Router {
 
         if (this._paused) return false;
 
-        if (
+        /*if (
             this._lastRouteResolved &&
             onlyURL === this._lastRouteResolved.url &&
             GETParameters === this._lastRouteResolved.query
@@ -102,7 +102,7 @@ export default class Router {
                 this._lastRouteResolved.hooks.already(this._lastRouteResolved.params);
             }
             return false;
-        }
+        }*/
 
         m = this.match(onlyURL, this._routes);
 
