@@ -127,7 +127,7 @@ export default class Query {
         }
 
         if (is_hash) {
-            col += `><i class="fas fa-external-link-alt" aria-hidden="true"></i> <a href="https://www.nanode.co/block/${val}" target="_blank">${val}</a></td>`;
+            col += `><i class="fas fa-external-link-alt" aria-hidden="true"></i> <a href="https://nanocrawler.cc/explorer/block/${val}" target="_blank">${val}</a></td>`;
         }
         else if (link) {
             col += `><a href="#" onclick="${link}">${val}</a></td>`;
