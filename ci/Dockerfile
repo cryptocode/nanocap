@@ -28,7 +28,6 @@ WORKDIR /nanocap
 RUN git clone https://github.com/cryptocode/nanocap.git .
 
 RUN conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
-RUN conan remote add public-conan https://api.bintray.com/conan/bincrafters/public-conan
 RUN conan install . --build missing
 RUN cmake -G "Unix Makefiles" .
 RUN make
