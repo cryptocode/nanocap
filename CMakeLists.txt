@@ -11,18 +11,18 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Set up Conan
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+include(${CMAKE_SOURCE_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(TARGETS)
 
 # Find Boost
 set(CMAKE_MODULE_PATH ${CONAN_CMAKE_MODULE_PATH} ${CMAKE_MODULE_PATH})
-find_package(Boost 1.66 EXACT)
+find_package(Boost 1.66)
 
 # Do not build Kaitai runtime with iconv
 add_definitions(-DKS_STR_ENCODING_NONE)
 
 # Include directories
-include_directories (${CMAKE_BINARY_DIR}/src)
+include_directories (${CMAKE_SOURCE_DIR}/src)
 #include_directories (${Boost_INCLUDE_DIRS})
 
 # Regenerate parser. The nanocurrency/protocol repository must be
@@ -31,16 +31,16 @@ if (NANOCAP_GENERATE_PARSER)
 
 	execute_process (
 		COMMAND
-		"kaitai-struct-compiler" "${CMAKE_BINARY_DIR}/protocol/reference/protocol.ksy" "--cpp-namespace" "nano::protocol" "--outdir" "${CMAKE_BINARY_DIR}/src" "-t" "cpp_stl"
-		ERROR_FILE "${CMAKE_BINARY_DIR}/gen.err"
-		WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+		"kaitai-struct-compiler" "${CMAKE_SOURCE_DIR}/protocol/reference/protocol.ksy" "--cpp-namespace" "nano::protocol" "--outdir" "${CMAKE_SOURCE_DIR}/src" "-t" "cpp_stl"
+		ERROR_FILE "${CMAKE_SOURCE_DIR}/gen.err"
+		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 	)
 
 	execute_process (
 		COMMAND
-		"kaitai-struct-compiler" "${CMAKE_BINARY_DIR}/protocol/reference/protocol.ksy" "--outdir" "${CMAKE_BINARY_DIR}/public" "-t" "javascript"
-		ERROR_FILE "${CMAKE_BINARY_DIR}/gen.err"
-		WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+		"kaitai-struct-compiler" "${CMAKE_SOURCE_DIR}/protocol/reference/protocol.ksy" "--outdir" "${CMAKE_SOURCE_DIR}/public" "-t" "javascript"
+		ERROR_FILE "${CMAKE_SOURCE_DIR}/gen.err"
+		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 	)
 endif ()
 
@@ -79,12 +79,12 @@ add_executable(nanocap
 	src/util/ctpl_stl.h src/util/termcolor.hpp
 	)
 
-target_link_libraries(nanocap blake2b sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::boost_multiprecision CONAN_PKG::jsonformoderncpp CONAN_PKG::PcapPlusPlus ${CMAKE_DL_LIBS})
+target_link_libraries(nanocap blake2b sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::boost_multiprecision CONAN_PKG::boost_circular_buffer CONAN_PKG::jsonformoderncpp CONAN_PKG::pcapplusplus ${CMAKE_DL_LIBS})
 
 if (APPLE)
 	target_link_libraries(nanocap "-framework CoreFoundation")
 	target_link_libraries(nanocap "-framework SystemConfiguration")
 
 	#target_link_libraries(reassembly "-framework CoreFoundation")
-	#target_link_libraries(reassembly "-framework SystemConfiguration")	
+	#target_link_libraries(reassembly "-framework SystemConfiguration")
 endif ()

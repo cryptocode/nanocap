@@ -31,6 +31,10 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	// Ensure packet-by-type queries are fast
 	sqlite->exec("CREATE INDEX IF NOT EXISTS idx_msg_type ON packet (msg_type)");
 
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS connection "
+				 "(id INTEGER PRIMARY KEY, ipv INTEGER NOT NULL, srcip TEXT NOT NULL, srcport INTEGER NOT NULL, dstip TEXT NOT NULL, dstport INTEGER NOT NULL, closed INTEGER DEFAULT 0, time TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+				 );
 	// Hosts enlisted in a keepalive packet
 	sqlite->exec(
 				 "CREATE TABLE IF NOT EXISTS keepalive_host "
@@ -82,13 +86,54 @@ nanocap::db::db(nanocap::app & app) : app (app)
 				 	"hash TEXT, previous TEXT, representative TEXT, signature TEXT, work INTEGER"
 				 ")"
 				 );
+	
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS nodeid_query "
+				 "( "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
+				 	"cookie TEXT"
+				 ")"
+				 );
+
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS nodeid_response "
+				 "( "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
+				 	"nodeid TEXT, nodeid_as_account TEXT, signature TEXT"
+				 ")"
+				 );
+	
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS telemetry "
+				 "( "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
+				 	"signature TEXT, nodeid TEXT, nodeid_as_account TEXT, blockcount INTEGER, cementedcount INTEGER, uncheckedcount INTEGER, accountcount INTEGER, bandwidthcap INTEGER, uptime INTEGER, peercount INTEGER, protocolversion INTEGER, genesisblock TEXT, majorversion INTEGER, minorversion INTEGER, patchversion INTEGER, prereleaseversion INTEGER, maker INTEGER, timestamp INTEGER, activedifficulty INTEGER"
+				 ")"
+				 );
+	
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS frontier_request "
+				 "( "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, "
+				 	"start TEXT, age INTEGER, count INTEGER"
+				 ")"
+				 );
+	sqlite->exec(
+				 "CREATE TABLE IF NOT EXISTS frontier_response "
+				 "( "
+				 	"id INTEGER PRIMARY KEY, packet_id INTEGER NOT NULL, frontier_request_id NOT NULL, "
+				 	"account TEXT, frontier_hash TEXT"
+				 ")"
+				 );
 				 
 	// Insert a new run. This increments the id multiplier.
-	assert (sqlite->exec("INSERT INTO runs DEFAULT VALUES") == 1);
+	sqlite->exec("INSERT INTO runs DEFAULT VALUES");
 
 	// Each runs gives a budget of one billion id's.
 	next_id = 1'000'000'000 * sqlite->execAndGet("SELECT MAX(id_multiplier) FROM runs").getInt64();
 
+	stmt_connection = std::make_unique<SQLite::Statement>(*sqlite,
+														 "INSERT INTO connection VALUES (:id, :ipv, :srcip, :srcport, :dstip, :dstport, :closed, CURRENT_TIMESTAMP)");
 	stmt_packet = std::make_unique<SQLite::Statement>(*sqlite,
 													  "INSERT INTO packet VALUES (:id, :ipv, :hdr_msg_type, :hdr_version_using, :hdr_version_min, :hdr_block_type, :hdr_extensions, :content_table, :content_id, :srcip, :srcport, :dstip, :dstport, :time, :time_usec)");
 	stmt_vote = std::make_unique<SQLite::Statement>(*sqlite,
@@ -110,43 +155,61 @@ nanocap::db::db(nanocap::app & app) : app (app)
 	stmt_packet_per_msg_type = std::make_unique<SQLite::Statement>(*sqlite,
 																   "SELECT COUNT(*), msg_type FROM packet GROUP BY msg_type");
 	
+	stmt_nodeid_query = std::make_unique<SQLite::Statement>(*sqlite, "INSERT INTO nodeid_query VALUES (:id, :packet_id, :cookie)");
+	stmt_nodeid_response = std::make_unique<SQLite::Statement>(*sqlite, "INSERT INTO nodeid_response VALUES (:id, :packet_id, :nodeid, :nodeid_as_account, :signature)");
+	
+	stmt_telemetry = std::make_unique<SQLite::Statement>(*sqlite,
+														 "INSERT INTO telemetry VALUES (:id, :packet_id, :signature, :nodeid, :nodeid_as_account, :blockcount, :cementedcount, :uncheckedcount, :accountcount, :bandwidthcap, :uptime, :peercount, :protocolversion, :genesisblock, :majorversion, :minorversion, :patchversion, :prereleaseversion, :maker, :timestamp, :activedifficulty)");
+	
+	stmt_frontier_request = std::make_unique<SQLite::Statement>(*sqlite, "INSERT INTO frontier_request VALUES (:id, :packet_id, :start, :age, :count)");
+	stmt_frontier_response = std::make_unique<SQLite::Statement>(*sqlite, "INSERT INTO frontier_response VALUES (:id, :packet_id, :frontier_request_id, :account, :frontier_hash)");
+	
 	// Start transaction; this will be periodically committed
 	primary_tx = std::make_unique<SQLite::Transaction> (*sqlite);
 }
 
 nanocap::db::~db()
 {
+	std::lock_guard<std::mutex> guard (db_mutex);
 	primary_tx->commit();
 }
 
 std::error_code nanocap::db::flush()
 {
-	std::error_code ec;
 	std::lock_guard<std::mutex> guard (db_mutex);
+	return flush_internal();
+}
+
+std::error_code nanocap::db::flush_internal()
+{
+	std::error_code ec;
 	primary_tx->commit();
 	primary_tx = std::make_unique<SQLite::Transaction> (*sqlite);
 	return ec;
 }
 
+
 std::error_code nanocap::db::destroy_capture_data()
 {
 	std::error_code ec;
-	sqlite->exec("DELETE FROM packet");
-	flush();
-	sqlite->exec("DELETE FROM keepalive_host");
-	flush();
-	sqlite->exec("DELETE FROM vote");
-	flush();
-	sqlite->exec("DELETE FROM block_state");
-	flush();
-	sqlite->exec("DELETE FROM block_send");
-	flush();
-	sqlite->exec("DELETE FROM block_receive");
-	flush();
-	sqlite->exec("DELETE FROM block_open");
-	flush();
-	sqlite->exec("DELETE FROM block_change");
-	flush();
+	
+	std::lock_guard<std::mutex> guard (db_mutex);
+	SQLite::Statement query(*sqlite, "SELECT name FROM sqlite_master WHERE type='table'");
+	
+	while (query.executeStep())
+	{
+		const std::string table_name = query.getColumn("name");
+		if (table_name != "sqlite_sequence")
+		{
+			std::cout << "Deleting table " << table_name << std::endl;
+			sqlite->exec("DELETE FROM " + table_name);
+			flush_internal();
+		}
+	}
+	
+	sqlite->exec("INSERT INTO runs DEFAULT VALUES");
+	flush_internal();
+
 	return ec;
 }
 
@@ -250,20 +313,202 @@ json nanocap::db::query(std::string query)
 	return res;
 }
 
-std::error_code nanocap::db::put(nano::protocol::nano_t::msg_keepalive_t& msg, nanocap::udp_packet& info)
+std::error_code nanocap::db::put_connection(int ipVersion, std::string srcip, uint16_t srcport, std::string dstip, uint16_t dstport, bool is_closing)
 {
 	std::error_code ec;
-	int64_t id = next_id.fetch_add(1);
-	
 	std::lock_guard<std::mutex> guard (db_mutex);
 
-	bind_header_fields(stmt_packet.get(), msg, id);
-	bind_udp_fields(stmt_packet.get(), info);
+	stmt_connection->bind(":id", next_id.fetch_add(1));
+	stmt_connection->bind(":ipv", ipVersion);
+	stmt_connection->bind(":srcip", srcip);
+	stmt_connection->bind(":srcport", srcport);
+	stmt_connection->bind(":dstip", dstip);
+	stmt_connection->bind(":dstport", dstport);
+	stmt_connection->bind(":closed", is_closing);
+	stmt_connection->exec();
+	stmt_connection->reset();
+	return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_telemetry_req_t& msg, nano_packet& info)
+{
+	std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+	std::lock_guard<std::mutex> guard (db_mutex);
+	
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
+	bind_packet_fields(stmt_packet.get(), info);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	
+	// Prepare for next use
+	stmt_packet->reset();
+	return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_telemetry_ack_t& msg, nano_packet& info)
+{
+	std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+	std::lock_guard<std::mutex> guard (db_mutex);
+	
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
+	bind_packet_fields(stmt_packet.get(), info);
 	
 	auto rows = stmt_packet->exec();
 	assert (rows == 1);
 
-	// TODO: only if configured to save peers
+	stmt_telemetry->bind(":id", next_id.fetch_add(1));
+	stmt_telemetry->bind(":packet_id", packet_id);
+	
+	stmt_telemetry->bind(":signature", nanocap::to_hex(msg.signature()));
+	stmt_telemetry->bind(":nodeid", nanocap::to_hex(msg.nodeid()));
+	stmt_telemetry->bind(":nodeid_as_account", pub_to_account(msg.nodeid()));
+	stmt_telemetry->bind(":blockcount", static_cast<int64_t>(msg.blockcount()));
+	stmt_telemetry->bind(":cementedcount", static_cast<int64_t>(msg.cementedcount()));
+	stmt_telemetry->bind(":uncheckedcount", static_cast<int64_t>(msg.uncheckedcount()));
+	stmt_telemetry->bind(":accountcount", static_cast<int64_t>(msg.accountcount()));
+	stmt_telemetry->bind(":bandwidthcap", static_cast<int64_t>(msg.bandwidthcap()));
+	stmt_telemetry->bind(":uptime", static_cast<int64_t>(msg.uptime()));
+	stmt_telemetry->bind(":peercount", msg.peercount());
+	stmt_telemetry->bind(":protocolversion", msg.protocolversion());
+	stmt_telemetry->bind(":genesisblock", nanocap::to_hex(msg.genesisblock()));
+	stmt_telemetry->bind(":majorversion", msg.majorversion());
+	stmt_telemetry->bind(":minorversion", msg.minorversion());
+	stmt_telemetry->bind(":patchversion", msg.patchversion());
+	stmt_telemetry->bind(":prereleaseversion", msg.prereleaseversion());
+	stmt_telemetry->bind(":maker", msg.maker());
+	stmt_telemetry->bind(":timestamp", static_cast<int64_t>(msg.timestamp()));
+	stmt_telemetry->bind(":activedifficulty", static_cast<int64_t>(msg.activedifficulty()));
+	
+	stmt_telemetry->exec();
+	stmt_telemetry->reset();
+	
+	// Prepare for next use
+	stmt_packet->reset();
+	return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_frontier_req_t& msg, nano_packet& info)
+{
+	std::error_code ec;
+	info.flow_data->packet_id = next_id.fetch_add(1);
+	std::lock_guard<std::mutex> guard (db_mutex);
+
+	bind_header_fields(stmt_packet.get(), msg, info.flow_data->packet_id);
+	bind_packet_fields(stmt_packet.get(), info);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	
+	info.flow_data->message_id = next_id.fetch_add(1);
+	stmt_frontier_request->bind(":id", info.flow_data->message_id);
+	stmt_frontier_request->bind(":packet_id", info.flow_data->packet_id);
+	stmt_frontier_request->bind(":start", msg.start());
+	stmt_frontier_request->bind(":age", msg.age());
+	stmt_frontier_request->bind(":count", msg.count());
+	stmt_frontier_request->exec();
+	stmt_frontier_request->reset();
+	
+	// Prepare for next use
+	stmt_packet->reset();
+	return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::frontier_response_t::frontier_entry_t& entry, nano_packet& info)
+{
+	std::error_code ec;
+	std::lock_guard<std::mutex> guard (db_mutex);
+	stmt_frontier_response->bind(":id", next_id.fetch_add(1));
+	stmt_frontier_response->bind(":packet_id", info.flow_data->packet_id);
+	stmt_frontier_response->bind(":frontier_request_id", info.flow_data->message_id);
+	stmt_frontier_response->bind(":account", pub_to_account(entry.account()));
+	stmt_frontier_response->bind(":frontier_hash", to_hex(entry.frontier_hash()));
+	stmt_frontier_response->exec();
+	stmt_frontier_response->reset();
+	return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_bulk_pull_t& msg, nano_packet& info)
+{
+	std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+	std::lock_guard<std::mutex> guard (db_mutex);
+
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
+	bind_packet_fields(stmt_packet.get(), info);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	
+	// Prepare for next use
+	stmt_packet->reset();
+	return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_bulk_pull_blocks_t& msg, nano_packet& info)
+{
+	std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+	std::lock_guard<std::mutex> guard (db_mutex);
+
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
+	bind_packet_fields(stmt_packet.get(), info);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	
+	// Prepare for next use
+	stmt_packet->reset();
+	return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_bulk_push_t& msg, nano_packet& info)
+{
+	std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+	std::lock_guard<std::mutex> guard (db_mutex);
+
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
+	bind_packet_fields(stmt_packet.get(), info);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	
+	// Prepare for next use
+	stmt_packet->reset();
+	return ec;
+}
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_bulk_pull_account_t& msg, nano_packet& info)
+{
+	std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+	std::lock_guard<std::mutex> guard (db_mutex);
+
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
+	bind_packet_fields(stmt_packet.get(), info);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	
+	// Prepare for next use
+	stmt_packet->reset();
+	return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_keepalive_t& msg, nanocap::nano_packet& info)
+{
+	std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+	std::lock_guard<std::mutex> guard (db_mutex);
+
+	bind_header_fields(stmt_packet.get(), msg, packet_id);
+	bind_packet_fields(stmt_packet.get(), info);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+
 	for (auto peer : *msg.peers ())
 	{
 		// std::string#data() is contiguous, so we simply cast it to std::array (which boost expects) to save a copy.
@@ -271,7 +516,7 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_keepalive_t& msg, n
 		boost::asio::ip::udp::endpoint endpoint (boost::asio::ip::address_v6 (*arr), peer->port ());
 		
 		stmt_host->bind(":id", next_id.fetch_add(1));
-		stmt_host->bind(":packet_id", id);
+		stmt_host->bind(":packet_id", packet_id);
 		stmt_host->bind(":address", endpoint.address().to_string ());
 		stmt_host->bind(":port", peer->port());
 		stmt_host->exec();
@@ -283,15 +528,14 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_keepalive_t& msg, n
 	return ec;
 }
 
-std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg, nanocap::udp_packet& info)
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg, nanocap::nano_packet& info)
 {
 	std::error_code ec;
 	int64_t packet_id = next_id.fetch_add(1);
-
 	std::lock_guard<std::mutex> guard (db_mutex);
 	
 	bind_header_fields(stmt_packet.get(), msg, packet_id);
-	bind_udp_fields(stmt_packet.get(), info);
+	bind_packet_fields(stmt_packet.get(), info);
 	
 	// Regular vote
 	if (msg.block())
@@ -362,16 +606,17 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 	return ec;
 }
 
-std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_req_t& msg, nanocap::udp_packet& info)
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_req_t& msg, nanocap::nano_packet& info)
 {
 	std::error_code ec;
 	int64_t packet_id = next_id.fetch_add(1);
 	std::lock_guard<std::mutex> guard (db_mutex);
+
 	bind_header_fields(stmt_packet.get(), msg, packet_id);
-	bind_udp_fields(stmt_packet.get(), info);
+	bind_packet_fields(stmt_packet.get(), info);
 	int64_t content_id = next_id.fetch_add(1);
 	std::string content_table;
-	put_block(msg.body(), content_id, packet_id, content_table);
+	put_block(msg.block(), content_id, packet_id, content_table);
 
 	stmt_packet->bind(":content_id", content_id);
 	stmt_packet->bind(":content_table", content_table);
@@ -384,23 +629,46 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_req_t& msg,
 	return ec;
 }
 
-std::error_code nanocap::db::put(nano::protocol::nano_t::msg_node_id_handshake_t& msg, nanocap::udp_packet& info)
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_node_id_handshake_t& msg, nanocap::nano_packet& info)
 {
 	std::error_code ec;
 	int64_t packet_id = next_id.fetch_add(1);
-	
 	std::lock_guard<std::mutex> guard (db_mutex);
+
 	bind_header_fields(stmt_packet.get(), msg, packet_id);
-	bind_udp_fields(stmt_packet.get(), info);
+	bind_packet_fields(stmt_packet.get(), info);
 	
 	auto rows = stmt_packet->exec();
 	assert (rows == 1);
+
+	// Note that a msg can be both a query and a handshake
+
+	if (msg.query() != nullptr)
+	{
+		stmt_nodeid_query->bind(":id", next_id.fetch_add(1));
+		stmt_nodeid_query->bind(":packet_id", packet_id);
+		stmt_nodeid_query->bind(":cookie", nanocap::to_hex(msg.query()->cookie()));
+		stmt_nodeid_query->exec();
+		stmt_nodeid_query->reset();
+	}
+
+	if (msg.response() != nullptr)
+	{
+		stmt_nodeid_response->bind(":id", next_id.fetch_add(1));
+		stmt_nodeid_response->bind(":packet_id", packet_id);
+		stmt_nodeid_response->bind(":nodeid", nanocap::to_hex(msg.response()->account()));
+		stmt_nodeid_response->bind(":nodeid_as_account", pub_to_account(msg.response()->account()));
+		stmt_nodeid_response->bind(":signature", nanocap::to_hex(msg.response()->signature()));
+		stmt_nodeid_response->exec();
+		stmt_nodeid_response->reset();
+	}
 
 	// Prepare for next use
 	stmt_packet->reset();
 	return ec;
 }
 
+// Must be called with db_mutex locked
 std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t* block_selector,
 									   int64_t id, int64_t packet_id, std::string& content_table)
 {
@@ -496,14 +764,14 @@ std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t*
 	return ec;
 }
 
-std::error_code nanocap::db::put(nano::protocol::nano_t::msg_publish_t& msg, nanocap::udp_packet& info)
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_publish_t& msg, nanocap::nano_packet& info)
 {
 	std::error_code ec;
 	int64_t packet_id = next_id.fetch_add(1);
-	
 	std::lock_guard<std::mutex> guard (db_mutex);
+
 	bind_header_fields(stmt_packet.get(), msg, packet_id);
-	bind_udp_fields(stmt_packet.get(), info);
+	bind_packet_fields(stmt_packet.get(), info);
 
 	int64_t content_id = next_id.fetch_add(1);
 	std::string content_table;

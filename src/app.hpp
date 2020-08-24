@@ -13,17 +13,17 @@ namespace nanocap
 	class app
 	{
 	public:
-		const std::string VERSION = "1.0";
+		const std::string VERSION = "2.0";
 
 		app();
 		~app();
 		void launch(int argc, char** argv);
 
-		inline nanocap::config& get_config() { return config; }
-		inline nanocap::db& get_db() { return *db; }
-		inline nanocap::packet_handler& get_handler() { return *handler; }
-		inline nanocap::webserver& get_webserver() { return *webserver; }
-		inline boost::program_options::variables_map& get_options() { return option_map; }
+		nanocap::config& get_config() { return config; }
+		nanocap::db& get_db() { return *db; }
+		nanocap::packet_handler& get_handler() { return *handler; }
+		nanocap::webserver& get_webserver() { return *webserver; }
+		boost::program_options::variables_map& get_options() { return option_map; }
 
 	private:
 		nanocap::config config;

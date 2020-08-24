@@ -1,12 +1,12 @@
 [requires]
-PcapPlusPlus/v18.08@andreybronin/stable
+pcapplusplus/19.12@bincrafters/stable
 jsonformoderncpp/3.3.0@vthiery/stable
-boost_system/1.66.0@bincrafters/stable
-boost_program_options/1.66.0@bincrafters/stable
-boost_filesystem/1.66.0@bincrafters/stable
-boost_asio/1.66.0@bincrafters/stable
-boost_multiprecision/1.66.0@bincrafters/stable
-
+boost_system/1.69.0@bincrafters/stable
+boost_program_options/1.69.0@bincrafters/stable
+boost_filesystem/1.69.0@bincrafters/stable
+boost_asio/1.69.0@bincrafters/stable
+boost_multiprecision/1.69.0@bincrafters/stable
+boost_circular_buffer/1.69.0@bincrafters/stable
 
 [options]
 libpcap:shared=False

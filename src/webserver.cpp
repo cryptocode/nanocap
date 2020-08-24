@@ -45,6 +45,7 @@ void nanocap::webserver::start()
 		status["capturing"] = app.get_handler().is_live_capturing();
 		status["importing"] = app.get_handler().is_file_importing();
 		status["max_db_size_reached"] = app.get_db().max_reached.load();
+		status["version"] = app.VERSION;
 		response->write(status.dump(4));
 	};
 
@@ -92,7 +93,7 @@ void nanocap::webserver::start()
 			response->write("{}");
 		}
 	};
-	
+
 	server.resource["^/api/v1/capture/destroy$"]["GET"] = [this](std::shared_ptr<HttpServer::Response> response, std::shared_ptr<HttpServer::Request> request)
 	{
 		app.get_db().destroy_capture_data();
@@ -105,7 +106,7 @@ void nanocap::webserver::start()
 		j["count"] =  this->app.get_db().count_packets();
 		response->write(j.dump(4));
 	};
-	
+
 	server.resource["^/api/v1/schema$"]["GET"] = [this](std::shared_ptr<HttpServer::Response> response, std::shared_ptr<HttpServer::Request> request)
 	{
 		response->write(this->app.get_db().get_schema_json());
@@ -115,7 +116,7 @@ void nanocap::webserver::start()
 	{
 		response->write(this->app.get_db().count_packets_per_type());
 	};
-	
+
 	// Serve static resources
 	server.default_resource["GET"] = [](std::shared_ptr<HttpServer::Response> response, std::shared_ptr<HttpServer::Request> request)
 	{
@@ -129,19 +130,19 @@ void nanocap::webserver::start()
 			{
 				path = boost::filesystem::canonical(web_root_path);
 			}
-			
+
 			// Check if path is within web_root_path
 			if(std::distance(web_root_path.begin(), web_root_path.end()) > std::distance(path.begin(), path.end()) ||
 			   !std::equal(web_root_path.begin(), web_root_path.end(), path.begin()))
 				throw std::invalid_argument("path must be within root path");
 			if(boost::filesystem::is_directory(path))
 				path /= "index.html";
-			
+
 			SimpleWeb::CaseInsensitiveMultimap header;
-			
+
 			auto ifs = std::make_shared<std::ifstream>();
 			ifs->open(path.string(), std::ifstream::in | std::ios::binary | std::ios::ate);
-			
+
 			if(*ifs)
 			{
 				auto length = ifs->tellg();
@@ -166,7 +167,7 @@ void nanocap::webserver::start()
 
 				header.emplace("Content-Length", to_string(length));
 				response->write(header);
-				
+
 				// Serve files; set mime type for scripts
 				class FileServer
 				{

@@ -18,6 +18,8 @@ namespace nano {
 
         public:
             class block_send_t;
+            class confirm_request_by_hash_t;
+            class msg_telemetry_req_t;
             class block_selector_t;
             class node_id_query_t;
             class block_receive_t;
@@ -36,6 +38,7 @@ namespace nano {
             class bulk_pull_response_t;
             class msg_publish_t;
             class block_state_t;
+            class hash_pair_t;
             class bulk_pull_account_response_t;
             class msg_keepalive_t;
             class msg_confirm_req_t;
@@ -44,6 +47,7 @@ namespace nano {
             class vote_common_t;
             class message_header_t;
             class frontier_response_t;
+            class msg_telemetry_ack_t;
 
             enum enum_blocktype_t {
                 ENUM_BLOCKTYPE_INVALID = 0,
@@ -67,7 +71,9 @@ namespace nano {
                 ENUM_MSGTYPE_FRONTIER_REQ = 8,
                 ENUM_MSGTYPE_BULK_PULL_BLOCKS = 9,
                 ENUM_MSGTYPE_NODE_ID_HANDSHAKE = 10,
-                ENUM_MSGTYPE_BULK_PULL_ACCOUNT = 11
+                ENUM_MSGTYPE_BULK_PULL_ACCOUNT = 11,
+                ENUM_MSGTYPE_TELEMETRY_REQ = 12,
+                ENUM_MSGTYPE_TELEMETRY_ACK = 13
             };
 
             enum enum_network_t {
@@ -83,7 +89,7 @@ namespace nano {
             };
 
             enum protocol_version_t {
-                PROTOCOL_VERSION_VALUE = 15
+                PROTOCOL_VERSION_VALUE = 17
             };
 
             nano_t(kaitai::kstream* p__io, kaitai::kstruct* p__parent = 0, nano_t* p__root = 0);
@@ -133,7 +139,7 @@ namespace nano {
                 std::string balance() const { return m_balance; }
 
                 /**
-                 * ed25519 signature
+                 * ed25519-blake2b signature
                  */
                 std::string signature() const { return m_signature; }
 
@@ -143,6 +149,68 @@ namespace nano {
                 uint64_t work() const { return m_work; }
                 nano_t* _root() const { return m__root; }
                 nano_t::block_selector_t* _parent() const { return m__parent; }
+            };
+
+            /**
+             * A sequence of hash,root pairs
+             */
+
+            class confirm_request_by_hash_t : public kaitai::kstruct {
+
+            public:
+
+                confirm_request_by_hash_t(kaitai::kstream* p__io, nano_t::msg_confirm_req_t* p__parent = 0, nano_t* p__root = 0);
+
+            private:
+                void _read();
+
+            public:
+                ~confirm_request_by_hash_t();
+
+            private:
+                std::vector<hash_pair_t*>* m_pairs;
+                bool n_pairs;
+
+            public:
+                bool _is_null_pairs() { pairs(); return n_pairs; };
+
+            private:
+                nano_t* m__root;
+                nano_t::msg_confirm_req_t* m__parent;
+
+            public:
+
+                /**
+                 * Up to "count" pairs of hash (first) and root (second), where count is read from header.
+                 */
+                std::vector<hash_pair_t*>* pairs() const { return m_pairs; }
+                nano_t* _root() const { return m__root; }
+                nano_t::msg_confirm_req_t* _parent() const { return m__parent; }
+            };
+
+            /**
+             * Request node telemetry metrics
+             */
+
+            class msg_telemetry_req_t : public kaitai::kstruct {
+
+            public:
+
+                msg_telemetry_req_t(kaitai::kstream* p__io, nano_t* p__parent = 0, nano_t* p__root = 0);
+
+            private:
+                void _read();
+
+            public:
+                ~msg_telemetry_req_t();
+
+            private:
+                nano_t* m__root;
+                nano_t* m__parent;
+
+            public:
+                nano_t* _root() const { return m__root; }
+                nano_t* _parent() const { return m__parent; }
             };
 
             /**
@@ -187,16 +255,16 @@ namespace nano {
                 ~node_id_query_t();
 
             private:
-                std::string m_node_id;
+                std::string m_cookie;
                 nano_t* m__root;
                 nano_t::msg_node_id_handshake_t* m__parent;
 
             public:
 
                 /**
-                 * Public key used as node id.
+                 * Per-endpoint random number
                  */
-                std::string node_id() const { return m_node_id; }
+                std::string cookie() const { return m_cookie; }
                 nano_t* _root() const { return m__root; }
                 nano_t::msg_node_id_handshake_t* _parent() const { return m__parent; }
             };
@@ -229,12 +297,12 @@ namespace nano {
                 std::string previous() const { return m_previous; }
 
                 /**
-                 * Public key of sending account
+                 * Hash of the source send block
                  */
                 std::string source() const { return m_source; }
 
                 /**
-                 * ed25519 signature
+                 * ed25519-blake2b signature
                  */
                 std::string signature() const { return m_signature; }
 
@@ -279,7 +347,7 @@ namespace nano {
                 std::string representative() const { return m_representative; }
 
                 /**
-                 * ed25519 signature
+                 * ed25519-blake2b signature
                  */
                 std::string signature() const { return m_signature; }
 
@@ -298,6 +366,7 @@ namespace nano {
             class msg_bulk_pull_t : public kaitai::kstruct {
 
             public:
+                class extended_parameters_t;
 
                 msg_bulk_pull_t(kaitai::kstream* p__io, nano_t* p__parent = 0, nano_t* p__root = 0);
 
@@ -307,9 +376,55 @@ namespace nano {
             public:
                 ~msg_bulk_pull_t();
 
+                class extended_parameters_t : public kaitai::kstruct {
+
+                public:
+
+                    extended_parameters_t(kaitai::kstream* p__io, nano_t::msg_bulk_pull_t* p__parent = 0, nano_t* p__root = 0);
+
+                private:
+                    void _read();
+
+                public:
+                    ~extended_parameters_t();
+
+                private:
+                    uint8_t m_zero;
+                    uint32_t m_count;
+                    std::string m_reserved;
+                    nano_t* m__root;
+                    nano_t::msg_bulk_pull_t* m__parent;
+
+                public:
+
+                    /**
+                     * Must be 0
+                     */
+                    uint8_t zero() const { return m_zero; }
+
+                    /**
+                     * little endian "count" parameter to limit the response set.
+                     */
+                    uint32_t count() const { return m_count; }
+
+                    /**
+                     * Reserved extended parameter bytes
+                     */
+                    std::string reserved() const { return m_reserved; }
+                    nano_t* _root() const { return m__root; }
+                    nano_t::msg_bulk_pull_t* _parent() const { return m__parent; }
+                };
+
             private:
                 std::string m_start;
                 std::string m_end;
+                extended_parameters_t* m_extended;
+                bool n_extended;
+
+            public:
+                bool _is_null_extended() { extended(); return n_extended; };
+
+            private:
                 nano_t* m__root;
                 nano_t* m__parent;
 
@@ -324,6 +439,7 @@ namespace nano {
                  * End block hash. May be zero.
                  */
                 std::string end() const { return m_end; }
+                extended_parameters_t* extended() const { return m_extended; }
                 nano_t* _root() const { return m__root; }
                 nano_t* _parent() const { return m__parent; }
             };
@@ -416,7 +532,7 @@ namespace nano {
             public:
 
                 /**
-                 * Hash of the source block
+                 * Hash of the source send block
                  */
                 std::string source() const { return m_source; }
 
@@ -431,7 +547,7 @@ namespace nano {
                 std::string account() const { return m_account; }
 
                 /**
-                 * ed25519 signature
+                 * ed25519-blake2b signature
                  */
                 std::string signature() const { return m_signature; }
 
@@ -600,7 +716,10 @@ namespace nano {
             };
 
             /**
-             * Bulk push request.
+             * A bulk push is equivalent to an unsolicited bulk pull response.
+             * If a node knows about an account a peer doesn't, the node sends
+             * its local blocks for that account to the peer. The stream of
+             * blocks ends with a sentinel block of type enum_blocktype::not_a_block.
              */
 
             class msg_bulk_push_t : public kaitai::kstruct {
@@ -673,7 +792,7 @@ namespace nano {
             public:
 
                 /**
-                 * Account
+                 * Account (node id)
                  */
                 std::string account() const { return m_account; }
 
@@ -845,7 +964,7 @@ namespace nano {
                 std::string link() const { return m_link; }
 
                 /**
-                 * ed25519 signature
+                 * ed25519-blake2b signature
                  */
                 std::string signature() const { return m_signature; }
 
@@ -858,6 +977,43 @@ namespace nano {
             };
 
             /**
+             * A general purpose pair of 32-byte hash values
+             */
+
+            class hash_pair_t : public kaitai::kstruct {
+
+            public:
+
+                hash_pair_t(kaitai::kstream* p__io, nano_t::confirm_request_by_hash_t* p__parent = 0, nano_t* p__root = 0);
+
+            private:
+                void _read();
+
+            public:
+                ~hash_pair_t();
+
+            private:
+                std::string m_first;
+                std::string m_second;
+                nano_t* m__root;
+                nano_t::confirm_request_by_hash_t* m__parent;
+
+            public:
+
+                /**
+                 * First hash in pair
+                 */
+                std::string first() const { return m_first; }
+
+                /**
+                 * Second hash in pair
+                 */
+                std::string second() const { return m_second; }
+                nano_t* _root() const { return m__root; }
+                nano_t::confirm_request_by_hash_t* _parent() const { return m__parent; }
+            };
+
+            /**
              * Response of the msg_bulk_pull_account message. The structure depends on the 
              * flags that was passed to the query.
              */
@@ -865,6 +1021,7 @@ namespace nano {
             class bulk_pull_account_response_t : public kaitai::kstruct {
 
             public:
+                class frontier_balance_entry_t;
                 class bulk_pull_account_entry_t;
 
                 bulk_pull_account_response_t(uint8_t p_flags, kaitai::kstream* p__io, kaitai::kstruct* p__parent = 0, nano_t* p__root = 0);
@@ -874,6 +1031,39 @@ namespace nano {
 
             public:
                 ~bulk_pull_account_response_t();
+
+                class frontier_balance_entry_t : public kaitai::kstruct {
+
+                public:
+
+                    frontier_balance_entry_t(kaitai::kstream* p__io, kaitai::kstruct* p__parent = 0, nano_t* p__root = 0);
+
+                private:
+                    void _read();
+
+                public:
+                    ~frontier_balance_entry_t();
+
+                private:
+                    std::string m_frontier_hash;
+                    std::string m_balance;
+                    nano_t* m__root;
+                    kaitai::kstruct* m__parent;
+
+                public:
+
+                    /**
+                     * Hash of the head block of the account chain.
+                     */
+                    std::string frontier_hash() const { return m_frontier_hash; }
+
+                    /**
+                     * 128-bit big endian account balance.
+                     */
+                    std::string balance() const { return m_balance; }
+                    nano_t* _root() const { return m__root; }
+                    kaitai::kstruct* _parent() const { return m__parent; }
+                };
 
                 class bulk_pull_account_entry_t : public kaitai::kstruct {
 
@@ -937,13 +1127,15 @@ namespace nano {
                 };
 
             private:
-                std::vector<bulk_pull_account_entry_t*>* m_entry;
+                frontier_balance_entry_t* m_frontier_entry;
+                std::vector<bulk_pull_account_entry_t*>* m_pending_entry;
                 uint8_t m_flags;
                 nano_t* m__root;
                 kaitai::kstruct* m__parent;
 
             public:
-                std::vector<bulk_pull_account_entry_t*>* entry() const { return m_entry; }
+                frontier_balance_entry_t* frontier_entry() const { return m_frontier_entry; }
+                std::vector<bulk_pull_account_entry_t*>* pending_entry() const { return m_pending_entry; }
                 uint8_t flags() const { return m_flags; }
                 nano_t* _root() const { return m__root; }
                 kaitai::kstruct* _parent() const { return m__parent; }
@@ -983,7 +1175,7 @@ namespace nano {
             };
 
             /**
-             * Requests confirmation of the given block
+             * Requests confirmation of the given block or list of root/hash pairs
              */
 
             class msg_confirm_req_t : public kaitai::kstruct {
@@ -999,12 +1191,26 @@ namespace nano {
                 ~msg_confirm_req_t();
 
             private:
-                block_selector_t* m_body;
+                confirm_request_by_hash_t* m_reqbyhash;
+                bool n_reqbyhash;
+
+            public:
+                bool _is_null_reqbyhash() { reqbyhash(); return n_reqbyhash; };
+
+            private:
+                block_selector_t* m_block;
+                bool n_block;
+
+            public:
+                bool _is_null_block() { block(); return n_block; };
+
+            private:
                 nano_t* m__root;
                 nano_t* m__parent;
 
             public:
-                block_selector_t* body() const { return m_body; }
+                confirm_request_by_hash_t* reqbyhash() const { return m_reqbyhash; }
+                block_selector_t* block() const { return m_block; }
                 nano_t* _root() const { return m__root; }
                 nano_t* _parent() const { return m__parent; }
             };
@@ -1049,7 +1255,7 @@ namespace nano {
             };
 
             /**
-             * A sequence of up to 12 hashes, terminated by EOF.
+             * A sequence of hashes, where count is read from header.
              */
 
             class vote_by_hash_t : public kaitai::kstruct {
@@ -1125,11 +1331,48 @@ namespace nano {
                 ~message_header_t();
 
             private:
+                bool f_response_flag;
+                int32_t m_response_flag;
+
+            public:
+
+                /**
+                 * If set, this is a node_id_handshake response. This maybe be set at the
+                 * same time as the query_flag.
+                 */
+                int32_t response_flag();
+
+            private:
                 bool f_block_type_int;
                 int32_t m_block_type_int;
 
             public:
                 int32_t block_type_int();
+
+            private:
+                bool f_telemetry_size;
+                int32_t m_telemetry_size;
+
+            public:
+
+                /**
+                 * Since protocol version 18.
+                 * Must be set for "telemetry_ack" messages. Indicates size of payload.
+                 */
+                int32_t telemetry_size();
+
+            private:
+                bool f_extended_params_present;
+                int32_t m_extended_params_present;
+
+            public:
+
+                /**
+                 * Since protocol version 15.
+                 * May be set for "bulk_pull" messages.
+                 * If set, the bulk_pull message contain extended parameters.
+                 */
+                int32_t extended_params_present();
 
             private:
                 bool f_block_type;
@@ -1145,6 +1388,18 @@ namespace nano {
                 enum_blocktype_t block_type();
 
             private:
+                bool f_item_count_int;
+                int32_t m_item_count_int;
+
+            public:
+
+                /**
+                 * Since protocol v17. For confirm_ack vote-by-hash, this is the number of hashes
+                 * in the body. For confirm_req request-by-hash, this is the number of hash+root pairs.
+                 */
+                int32_t item_count_int();
+
+            private:
                 bool f_query_flag;
                 int32_t m_query_flag;
 
@@ -1155,18 +1410,6 @@ namespace nano {
                  * same time as the response_flag.
                  */
                 int32_t query_flag();
-
-            private:
-                bool f_response_flag;
-                int32_t m_response_flag;
-
-            public:
-
-                /**
-                 * If set, this is a node_id_handshake response. This maybe be set at the
-                 * same time as the query_flag.
-                 */
-                int32_t response_flag();
 
             private:
                 std::string m_magic;
@@ -1278,6 +1521,139 @@ namespace nano {
                 std::vector<frontier_entry_t*>* entry() const { return m_entry; }
                 nano_t* _root() const { return m__root; }
                 kaitai::kstruct* _parent() const { return m__parent; }
+            };
+
+            /**
+             * Signed telemetry response
+             */
+
+            class msg_telemetry_ack_t : public kaitai::kstruct {
+
+            public:
+
+                msg_telemetry_ack_t(kaitai::kstream* p__io, nano_t* p__parent = 0, nano_t* p__root = 0);
+
+            private:
+                void _read();
+
+            public:
+                ~msg_telemetry_ack_t();
+
+            private:
+                std::string m_signature;
+                std::string m_nodeid;
+                uint64_t m_blockcount;
+                uint64_t m_cementedcount;
+                uint64_t m_uncheckedcount;
+                uint64_t m_accountcount;
+                uint64_t m_bandwidthcap;
+                uint64_t m_uptime;
+                uint32_t m_peercount;
+                uint8_t m_protocolversion;
+                std::string m_genesisblock;
+                uint8_t m_majorversion;
+                uint8_t m_minorversion;
+                uint8_t m_patchversion;
+                uint8_t m_prereleaseversion;
+                uint8_t m_maker;
+                uint64_t m_timestamp;
+                uint64_t m_activedifficulty;
+                nano_t* m__root;
+                nano_t* m__parent;
+
+            public:
+
+                /**
+                 * Signature (Big endian)
+                 */
+                std::string signature() const { return m_signature; }
+
+                /**
+                 * Public node id (Big endian)
+                 */
+                std::string nodeid() const { return m_nodeid; }
+
+                /**
+                 * Block count
+                 */
+                uint64_t blockcount() const { return m_blockcount; }
+
+                /**
+                 * Cemented block count
+                 */
+                uint64_t cementedcount() const { return m_cementedcount; }
+
+                /**
+                 * Unchecked block count
+                 */
+                uint64_t uncheckedcount() const { return m_uncheckedcount; }
+
+                /**
+                 * Account count
+                 */
+                uint64_t accountcount() const { return m_accountcount; }
+
+                /**
+                 * Bandwidth limit, 0 indiciates unlimited
+                 */
+                uint64_t bandwidthcap() const { return m_bandwidthcap; }
+
+                /**
+                 * Length of time a peer has been running for (in seconds)
+                 */
+                uint64_t uptime() const { return m_uptime; }
+
+                /**
+                 * Peer count
+                 */
+                uint32_t peercount() const { return m_peercount; }
+
+                /**
+                 * Protocol version
+                 */
+                uint8_t protocolversion() const { return m_protocolversion; }
+
+                /**
+                 * Genesis block hash (Big endian)
+                 */
+                std::string genesisblock() const { return m_genesisblock; }
+
+                /**
+                 * Major version
+                 */
+                uint8_t majorversion() const { return m_majorversion; }
+
+                /**
+                 * Minor version
+                 */
+                uint8_t minorversion() const { return m_minorversion; }
+
+                /**
+                 * Patch version
+                 */
+                uint8_t patchversion() const { return m_patchversion; }
+
+                /**
+                 * Pre-release version
+                 */
+                uint8_t prereleaseversion() const { return m_prereleaseversion; }
+
+                /**
+                 * Maker version. 0 indicates it is from the Nano Foundation, there is no standardised list yet for any others.
+                 */
+                uint8_t maker() const { return m_maker; }
+
+                /**
+                 * Number of milliseconds since the UTC epoch
+                 */
+                uint64_t timestamp() const { return m_timestamp; }
+
+                /**
+                 * The current network active difficulty.
+                 */
+                uint64_t activedifficulty() const { return m_activedifficulty; }
+                nano_t* _root() const { return m__root; }
+                nano_t* _parent() const { return m__parent; }
             };
 
         private:

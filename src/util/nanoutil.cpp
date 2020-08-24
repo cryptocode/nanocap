@@ -43,7 +43,7 @@ std::string nanocap::pub_to_account (std::string public_bytes)
 		number_l >>= 5;
 		destination_a.push_back (account_encode (r));
 	}
-	destination_a.append ("_brx");
+	destination_a.append ("_onan");
 	std::reverse (destination_a.begin (), destination_a.end ());
 	return destination_a;
 }
