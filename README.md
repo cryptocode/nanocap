@@ -78,7 +78,7 @@ Both settings may increase pcap import times.
 ## Capture live traffic
 
 ```
-sudo bin/nanocap
+sudo build/bin/nanocap
 ```
 
 If on Docker, map the config file and run nanocap like this:
@@ -94,7 +94,7 @@ Visit http://localhost:8077 to view/stop/restart captures and query packets.
 ## Import pcap files
 
 ```
-sudo bin/nanocap --pcap my.pcap
+sudo build/bin/nanocap --pcap my.pcap
 ```
 
 If on Docker:
@@ -128,8 +128,16 @@ $ conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-
 
 Install dependencies using conan. This may take a long time the first time:
 
+On macOS:
+
 ```
 $ conan install . --build missing
+```
+
+On Linux you probably need to specify libstdc++11 to avoid ABI issues when linking:
+
+```
+$ conan install . --build=missing -s compiler.libcxx=libstdc++11
 ```
 
 Finally, generate the build file:
@@ -137,6 +145,12 @@ Finally, generate the build file:
 ```
 $ mkdir build && cd build
 $ cmake .. -G <generator>
+```
+
+Check if it works:
+
+```
+build/bin/nanocap --help
 ```
 
 If running from XCode, make sure you set the working directory to the project directory, and you may need to select Run as root.
