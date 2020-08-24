@@ -62,7 +62,6 @@ void sig_handler(const boost::system::error_code& error, int signal_number)
 {
 	std::cout << "Stopping due to signal " << signal_number << ". Please wait..." << std::endl;
 	application.get_handler().stop_capture();
-	application.get_handler().print_stats(std::cout);
 	std::exit(0);
 }
 

@@ -10,7 +10,11 @@ export default class Query {
         editor = ace.edit("editor");
         editor.renderer.setShowGutter(false);
         editor.renderer.setShowPrintMargin(false);
-        editor.setOptions({highlightActiveLine: false});
+        editor.setOptions({
+            highlightActiveLine: false,
+            maxLines: 16,
+            minLines: 16
+        });
         editor.session.setMode("ace/mode/sql");
         document.getElementById('editor').style.fontSize='14px';
 
@@ -33,7 +37,7 @@ export default class Query {
             if (editor.getValue() === '') {
                 editor.setValue(`select * from packet limit 50`);
                 this.get_query_and_execute();
-            }          
+            }
             this.app.show_page('page_home');
         }).resolve();
 
@@ -52,6 +56,17 @@ export default class Query {
             this.app.show_page('page_home');
         }).resolve();
 
+        this.app.router.on('/packet/:id', (params) => {
+            editor.setValue(`select * from packet where id = ${params.id}`);
+            this.get_query_and_execute();
+            this.app.show_page('page_home');
+        }).resolve();
+
+        this.app.router.on('/frontier_request/:id', (params) => {
+            editor.setValue(`select * from frontier_request where id = ${params.id}`);
+            this.get_query_and_execute();
+            this.app.show_page('page_home');
+        }).resolve();
         // Query votes
         this.app.router.on('/:table/:id', (params) => {
             editor.setValue(`select * from ${params.table} where id=${params.id}`);
@@ -71,6 +86,15 @@ export default class Query {
     on_query_content_table (self, event, content_table, content_id) {
         event.preventDefault();
         this.app.router.navigate(`/${content_table}/${content_id}`);
+    }
+   on_query_packet (self, event, packet_id) {
+        event.preventDefault();
+        this.app.router.navigate(`/packet/${packet_id}`);
+    }
+
+    on_query_frontier_req (self, event, req_id) {
+        event.preventDefault();
+        this.app.router.navigate(`/frontier_request/${req_id}`);
     }
 
     table (header_cols, rows) {
@@ -138,6 +162,8 @@ export default class Query {
                         let cols = '';
                         let content_table = undefined;
                         let content_id = undefined;
+                        let packet_id = undefined;
+                        let frontier_req_id = undefined;
 
                         for (const col_index in res.rows[row_index]) {
                             let link = undefined;
@@ -150,20 +176,31 @@ export default class Query {
                             else if (colname == 'content_id') {
                                 content_id = val;
                             }
+                            else if (colname == 'packet_id') {
+                                packet_id = val;
+                            }
+                            else if (colname == 'frontier_request_id') {
+                                frontier_req_id = val;
+                            }
                             else if (colname == 'extensions' || colname == 'msg_type') {
                                 val = '0x'+Number(val).toString(16);
                             }
                             else if (colname == 'time') {
                                 hover = val;
-                                var dt = new Date(0);
-                                dt.setUTCSeconds(Number(val));
-                                val = moment(dt).format('MMM DD HH:mm');
                             }
 
                             // Once we know both the content table- and id (in any order), add a navigation link to it.
                             if (content_table && content_id) {
                                 link = `window.nanocap.query.on_query_content_table(this, event, '${content_table}', ${content_id});`;
                                 content_table  = undefined;
+                            }
+                            else if (packet_id) {
+                                link = `window.nanocap.query.on_query_packet(this, event, ${packet_id});`;
+                                packet_id = undefined;
+                            }
+                            else if (frontier_req_id) {
+                                link = `window.nanocap.query.on_query_frontier_req(this, event, ${frontier_req_id});`;
+                                frontier_req_id = undefined;
                             }
 
                             cols += this.col (val, colname === 'hash', link, hover);

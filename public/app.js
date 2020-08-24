@@ -154,6 +154,8 @@ export default class App {
                         $('#status_'+name+"_inverted").removeClass('d-none');
                     }
                 }
+
+                $('#status_version').html('Version ' + data.version);
             }
             // If the nanocap process has been down but is now back, reset packecount interval as well.
             if (this.status_interval > 1200) {

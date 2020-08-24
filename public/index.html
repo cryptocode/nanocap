@@ -36,7 +36,7 @@
 
 <!-- Navigation bar -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-  <a app-route class="navbar-brand" href="/">nanocap</a>
+  <a app-route class="navbar-brand" href="/">nanocap</a><br>
   <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
   </button>
@@ -49,9 +49,9 @@
       <li id="nav_page_schema" class="nav-item">
         <a app-route class="nav-link" href="schema">Schema</a>
       </li>
-      <li id="nav_page_config" class="nav-item">
+      <!--li id="nav_page_config" class="nav-item">
         <a app-route class="nav-link" href="config">Configuration</a>
-      </li>
+      </li-->
       <li class="nav-item">
         <a class="nav-link" href="https://github.com/nanocurrency/protocol/tree/master/reference">Protocol Documentation</a>
       </li>
@@ -60,6 +60,7 @@
     <!-- Spinner -->
     <div id="app_spinner" class="lds-ellipsis d-none"><div></div><div></div><div></div><div></div></div>
 
+    <span id="status_version" class="badge badge-info d-none"></span>&nbsp;
     <span id="status_capturing" class="badge badge-info d-none">Live capture on</span>&nbsp;
     <span id="status_network" class="badge badge-danger d-none">nanocap unavailable</span>&nbsp;
     <span id="status_capturing_inverted" class="badge badge-secondary d-none">Live capture off</span>&nbsp;
@@ -99,7 +100,9 @@
                 </div>
                 <div class="row">
                     <div class="col-lg-8">
-                        <small>Press Cmd+E or Alt+Ctrl+E to execute. Note that there's a limit on the number of returned rows; this can be changed in the config.</small>
+                        <small>Press Cmd+E or Alt+Ctrl+E to execute. Note that there's a hard limit on the number of returned rows; this can be changed in the config.</small>
+                        <br>
+                        <small><a href="https://github.com/cryptocode/nanocap#queries" target="_blank">Query examples</a></small>
                     </div>
                     <div class="col-lg-4">
                         <button id="action_query" class="btn btn-primary btn-sm float-right" type="submit">Query</button>
@@ -124,7 +127,7 @@
     </div>
 
     <div id="page_config" class="p-4 d-none">
-        Sorry mate, not implemented. Change nanocap.json manually for now.
+        Change nanocap.json manually for now.
     </div>
 
     <div id="page_schema" class="p-4 d-none">

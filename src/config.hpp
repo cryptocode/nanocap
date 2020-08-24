@@ -13,7 +13,7 @@ namespace nanocap
 	{
 	public:
 		bool enabled {true};
-		/** IP address of interface to capture*/
+		/** IP address of interface to capture */
 		std::string device_ip {""};
 		/** If set, use a Berkeley Packet Filter expression instead of a filter based on the port config entry. */
 		std::string filter {""};
@@ -21,6 +21,8 @@ namespace nanocap
 		int64_t max_capture_megabytes {4096};
 		/** If true, save block details. If false, save only block type. */
 		bool block_details {false};
+		/** If true, save bootstrap replies (this requires potentially huge amounts of disk space). If false, only save requests. */
+		bool bootstrap_details {false};
 	};
 
 	/** Web/REST server configuration */
@@ -29,7 +31,7 @@ namespace nanocap
 	public:
 		bool enabled {true};
 		std::string bind {"0.0.0.0"};
-		int port {7077};
+		int port {8077};
 		int max_query_result {5000};
 	};
 
@@ -51,7 +53,8 @@ namespace nanocap
 			{"device_ip", capture.device_ip},
 			{"filter", capture.filter},
 			{"max_capture_megabytes", capture.max_capture_megabytes},
-			{"block_details", capture.block_details}
+			{"block_details", capture.block_details},
+			{"bootstrap_details", capture.bootstrap_details}
 		};
 	}
 	
@@ -67,6 +70,8 @@ namespace nanocap
 			json.at("max_capture_megabytes").get_to(capture.max_capture_megabytes);
 		if (json.count("block_details"))
 			json.at("block_details").get_to(capture.block_details);
+		if (json.count("bootstrap_details"))
+			json.at("bootstrap_details").get_to(capture.bootstrap_details);
 	}
 	
 	inline void to_json(nlohmann::json& json, const config_web& web)

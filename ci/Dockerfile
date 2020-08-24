@@ -1,7 +1,7 @@
 FROM ubuntu:18.04
 MAINTAINER cryptocode <cryptocode@zolo.io>
 LABEL Description="Protocol analyzer for the Nano network"
-EXPOSE 7077
+EXPOSE 8077
 
 RUN apt-get update && apt-get install -y \
 	apt-transport-https
@@ -28,7 +28,7 @@ WORKDIR /nanocap
 RUN git clone https://github.com/cryptocode/nanocap.git .
 
 RUN conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
-RUN conan remote add andreybronin https://api.bintray.com/conan/andreybronin/conan
+RUN conan remote add public-conan https://api.bintray.com/conan/bincrafters/public-conan
 RUN conan install . --build missing
 RUN cmake -G "Unix Makefiles" .
 RUN make

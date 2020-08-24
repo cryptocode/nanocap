@@ -41,6 +41,8 @@ var Nano = (function() {
     BULK_PULL_BLOCKS: 9,
     NODE_ID_HANDSHAKE: 10,
     BULK_PULL_ACCOUNT: 11,
+    TELEMETRY_REQ: 12,
+    TELEMETRY_ACK: 13,
 
     0: "INVALID",
     1: "NOT_A_TYPE",
@@ -54,6 +56,8 @@ var Nano = (function() {
     9: "BULK_PULL_BLOCKS",
     10: "NODE_ID_HANDSHAKE",
     11: "BULK_PULL_ACCOUNT",
+    12: "TELEMETRY_REQ",
+    13: "TELEMETRY_ACK",
   });
 
   Nano.EnumNetwork = Object.freeze({
@@ -77,9 +81,9 @@ var Nano = (function() {
   });
 
   Nano.ProtocolVersion = Object.freeze({
-    VALUE: 15,
+    VALUE: 17,
 
-    15: "VALUE",
+    17: "VALUE",
   });
 
   function Nano(_io, _parent, _root) {
@@ -110,6 +114,9 @@ var Nano = (function() {
     case Nano.EnumMsgtype.BULK_PUSH:
       this.body = new MsgBulkPush(this._io, this, this._root);
       break;
+    case Nano.EnumMsgtype.TELEMETRY_ACK:
+      this.body = new MsgTelemetryAck(this._io, this, this._root);
+      break;
     case Nano.EnumMsgtype.NODE_ID_HANDSHAKE:
       this.body = new MsgNodeIdHandshake(this._io, this, this._root);
       break;
@@ -121,6 +128,9 @@ var Nano = (function() {
       break;
     case Nano.EnumMsgtype.PUBLISH:
       this.body = new MsgPublish(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.TELEMETRY_REQ:
+      this.body = new MsgTelemetryReq(this._io, this, this._root);
       break;
     default:
       this.body = new IgnoreUntilEof(this._io, this, this._root);
@@ -157,7 +167,7 @@ var Nano = (function() {
      */
 
     /**
-     * ed25519 signature
+     * ed25519-blake2b signature
      */
 
     /**
@@ -165,6 +175,55 @@ var Nano = (function() {
      */
 
     return BlockSend;
+  })();
+
+  /**
+   * A sequence of hash,root pairs
+   */
+
+  var ConfirmRequestByHash = Nano.ConfirmRequestByHash = (function() {
+    function ConfirmRequestByHash(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    ConfirmRequestByHash.prototype._read = function() {
+      if (!(this._io.isEof())) {
+        this.pairs = []
+        var i = 0;
+        do {
+          var _ = new HashPair(this._io, this, this._root);
+          this.pairs.push(_);
+          i++;
+        } while (!( ((i == this._root.header.itemCountInt) || (this._io.isEof())) ));
+      }
+    }
+
+    /**
+     * Up to "count" pairs of hash (first) and root (second), where count is read from header.
+     */
+
+    return ConfirmRequestByHash;
+  })();
+
+  /**
+   * Request node telemetry metrics
+   */
+
+  var MsgTelemetryReq = Nano.MsgTelemetryReq = (function() {
+    function MsgTelemetryReq(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgTelemetryReq.prototype._read = function() {
+    }
+
+    return MsgTelemetryReq;
   })();
 
   /**
@@ -215,11 +274,11 @@ var Nano = (function() {
       this._read();
     }
     NodeIdQuery.prototype._read = function() {
-      this.nodeId = this._io.readBytes(32);
+      this.cookie = this._io.readBytes(32);
     }
 
     /**
-     * Public key used as node id.
+     * Per-endpoint random number
      */
 
     return NodeIdQuery;
@@ -245,11 +304,11 @@ var Nano = (function() {
      */
 
     /**
-     * Public key of sending account
+     * Hash of the source send block
      */
 
     /**
-     * ed25519 signature
+     * ed25519-blake2b signature
      */
 
     /**
@@ -283,7 +342,7 @@ var Nano = (function() {
      */
 
     /**
-     * ed25519 signature
+     * ed25519-blake2b signature
      */
 
     /**
@@ -308,7 +367,39 @@ var Nano = (function() {
     MsgBulkPull.prototype._read = function() {
       this.start = this._io.readBytes(32);
       this.end = this._io.readBytes(32);
+      if (this._root.header.extendedParamsPresent != 0) {
+        this.extended = new ExtendedParameters(this._io, this, this._root);
+      }
     }
+
+    var ExtendedParameters = MsgBulkPull.ExtendedParameters = (function() {
+      function ExtendedParameters(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      ExtendedParameters.prototype._read = function() {
+        this.zero = this._io.readU1();
+        this.count = this._io.readU4le();
+        this.reserved = this._io.readBytes(3);
+      }
+
+      /**
+       * Must be 0
+       */
+
+      /**
+       * little endian "count" parameter to limit the response set.
+       */
+
+      /**
+       * Reserved extended parameter bytes
+       */
+
+      return ExtendedParameters;
+    })();
 
     /**
      * Account public key or block hash.
@@ -385,7 +476,7 @@ var Nano = (function() {
     }
 
     /**
-     * Hash of the source block
+     * Hash of the source send block
      */
 
     /**
@@ -397,7 +488,7 @@ var Nano = (function() {
      */
 
     /**
-     * ed25519 signature
+     * ed25519-blake2b signature
      */
 
     /**
@@ -468,10 +559,10 @@ var Nano = (function() {
       this._read();
     }
     MsgNodeIdHandshake.prototype._read = function() {
-      if (this._root.header.queryFlag == 1) {
+      if (this._root.header.queryFlag != 0) {
         this.query = new NodeIdQuery(this._io, this, this._root);
       }
-      if (this._root.header.responseFlag == 1) {
+      if (this._root.header.responseFlag != 0) {
         this.response = new NodeIdResponse(this._io, this, this._root);
       }
     }
@@ -513,7 +604,10 @@ var Nano = (function() {
   })();
 
   /**
-   * Bulk push request.
+   * A bulk push is equivalent to an unsolicited bulk pull response.
+   * If a node knows about an account a peer doesn't, the node sends
+   * its local blocks for that account to the peer. The stream of
+   * blocks ends with a sentinel block of type enum_blocktype::not_a_block.
    */
 
   var MsgBulkPush = Nano.MsgBulkPush = (function() {
@@ -567,7 +661,7 @@ var Nano = (function() {
     }
 
     /**
-     * Account
+     * Account (node id)
      */
 
     /**
@@ -698,7 +792,7 @@ var Nano = (function() {
      */
 
     /**
-     * ed25519 signature
+     * ed25519-blake2b signature
      */
 
     /**
@@ -706,6 +800,34 @@ var Nano = (function() {
      */
 
     return BlockState;
+  })();
+
+  /**
+   * A general purpose pair of 32-byte hash values
+   */
+
+  var HashPair = Nano.HashPair = (function() {
+    function HashPair(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    HashPair.prototype._read = function() {
+      this.first = this._io.readBytes(32);
+      this.second = this._io.readBytes(32);
+    }
+
+    /**
+     * First hash in pair
+     */
+
+    /**
+     * Second hash in pair
+     */
+
+    return HashPair;
   })();
 
   /**
@@ -723,14 +845,39 @@ var Nano = (function() {
       this._read();
     }
     BulkPullAccountResponse.prototype._read = function() {
-      this.entry = []
+      this.frontierEntry = new FrontierBalanceEntry(this._io, this, this._root);
+      this.pendingEntry = []
       var i = 0;
       do {
         var _ = new BulkPullAccountEntry(this._io, this, this._root, this.flags);
-        this.entry.push(_);
+        this.pendingEntry.push(_);
         i++;
-      } while (!( ((this._io.isEof()) || ((KaitaiStream.byteArrayCompare(this.entry[i].hash, this._root.constBlockZero) == 0))) ));
+      } while (!( ((this._io.isEof()) || ((KaitaiStream.byteArrayCompare(this.pendingEntry[i].hash, this._root.constBlockZero) == 0))) ));
     }
+
+    var FrontierBalanceEntry = BulkPullAccountResponse.FrontierBalanceEntry = (function() {
+      function FrontierBalanceEntry(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      FrontierBalanceEntry.prototype._read = function() {
+        this.frontierHash = this._io.readBytes(32);
+        this.balance = this._io.readBytes(16);
+      }
+
+      /**
+       * Hash of the head block of the account chain.
+       */
+
+      /**
+       * 128-bit big endian account balance.
+       */
+
+      return FrontierBalanceEntry;
+    })();
 
     var BulkPullAccountEntry = BulkPullAccountResponse.BulkPullAccountEntry = (function() {
       function BulkPullAccountEntry(_io, _parent, _root, flags) {
@@ -748,7 +895,7 @@ var Nano = (function() {
         if (!(this.pendingAddressOnly)) {
           this.amount = this._io.readBytes(16);
         }
-        if ( ((!(this.pendingAddressOnly)) || (this.pendingIncludeAddress)) ) {
+        if ( ((this.pendingAddressOnly) || (this.pendingIncludeAddress)) ) {
           this.source = this._io.readBytes(32);
         }
       }
@@ -803,7 +950,7 @@ var Nano = (function() {
   })();
 
   /**
-   * Requests confirmation of the given block
+   * Requests confirmation of the given block or list of root/hash pairs
    */
 
   var MsgConfirmReq = Nano.MsgConfirmReq = (function() {
@@ -815,7 +962,12 @@ var Nano = (function() {
       this._read();
     }
     MsgConfirmReq.prototype._read = function() {
-      this.body = new BlockSelector(this._io, this, this._root, this._root.header.blockTypeInt);
+      if (this._root.header.blockType == Nano.EnumBlocktype.NOT_A_BLOCK) {
+        this.reqbyhash = new ConfirmRequestByHash(this._io, this, this._root);
+      }
+      if (this._root.header.blockType != Nano.EnumBlocktype.NOT_A_BLOCK) {
+        this.block = new BlockSelector(this._io, this, this._root, this._root.header.blockTypeInt);
+      }
     }
 
     return MsgConfirmReq;
@@ -851,7 +1003,7 @@ var Nano = (function() {
   })();
 
   /**
-   * A sequence of up to 12 hashes, terminated by EOF.
+   * A sequence of hashes, where count is read from header.
    */
 
   var VoteByHash = Nano.VoteByHash = (function() {
@@ -870,7 +1022,7 @@ var Nano = (function() {
           var _ = this._io.readBytes(32);
           this.hashes.push(_);
           i++;
-        } while (!( ((i == 12) || (this._io.isEof())) ));
+        } while (!( ((i == this._root.header.itemCountInt) || (this._io.isEof())) ));
       }
     }
 
@@ -915,12 +1067,52 @@ var Nano = (function() {
       this.messageType = this._io.readU1();
       this.extensions = this._io.readU2le();
     }
+
+    /**
+     * If set, this is a node_id_handshake response. This maybe be set at the
+     * same time as the query_flag.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'responseFlag', {
+      get: function() {
+        if (this._m_responseFlag !== undefined)
+          return this._m_responseFlag;
+        this._m_responseFlag = (this.extensions & 2);
+        return this._m_responseFlag;
+      }
+    });
     Object.defineProperty(MessageHeader.prototype, 'blockTypeInt', {
       get: function() {
         if (this._m_blockTypeInt !== undefined)
           return this._m_blockTypeInt;
         this._m_blockTypeInt = ((this.extensions & 3840) >>> 8);
         return this._m_blockTypeInt;
+      }
+    });
+
+    /**
+     * Since protocol version 18.
+     * Must be set for "telemetry_ack" messages. Indicates size of payload.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'telemetrySize', {
+      get: function() {
+        if (this._m_telemetrySize !== undefined)
+          return this._m_telemetrySize;
+        this._m_telemetrySize = (this.extensions & 2047);
+        return this._m_telemetrySize;
+      }
+    });
+
+    /**
+     * Since protocol version 15.
+     * May be set for "bulk_pull" messages.
+     * If set, the bulk_pull message contain extended parameters.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'extendedParamsPresent', {
+      get: function() {
+        if (this._m_extendedParamsPresent !== undefined)
+          return this._m_extendedParamsPresent;
+        this._m_extendedParamsPresent = (this.extensions & 1);
+        return this._m_extendedParamsPresent;
       }
     });
 
@@ -939,6 +1131,19 @@ var Nano = (function() {
     });
 
     /**
+     * Since protocol v17. For confirm_ack vote-by-hash, this is the number of hashes
+     * in the body. For confirm_req request-by-hash, this is the number of hash+root pairs.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'itemCountInt', {
+      get: function() {
+        if (this._m_itemCountInt !== undefined)
+          return this._m_itemCountInt;
+        this._m_itemCountInt = ((this.extensions & 61440) >>> 12);
+        return this._m_itemCountInt;
+      }
+    });
+
+    /**
      * If set, this is a node_id_handshake query. This maybe be set at the
      * same time as the response_flag.
      */
@@ -948,19 +1153,6 @@ var Nano = (function() {
           return this._m_queryFlag;
         this._m_queryFlag = (this.extensions & 1);
         return this._m_queryFlag;
-      }
-    });
-
-    /**
-     * If set, this is a node_id_handshake response. This maybe be set at the
-     * same time as the query_flag.
-     */
-    Object.defineProperty(MessageHeader.prototype, 'responseFlag', {
-      get: function() {
-        if (this._m_responseFlag !== undefined)
-          return this._m_responseFlag;
-        this._m_responseFlag = (this.extensions & 2);
-        return this._m_responseFlag;
       }
     });
 
@@ -1042,6 +1234,114 @@ var Nano = (function() {
     })();
 
     return FrontierResponse;
+  })();
+
+  /**
+   * Signed telemetry response
+   */
+
+  var MsgTelemetryAck = Nano.MsgTelemetryAck = (function() {
+    function MsgTelemetryAck(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgTelemetryAck.prototype._read = function() {
+      this.signature = this._io.readBytes(64);
+      this.nodeid = this._io.readBytes(32);
+      this.blockcount = this._io.readU8be();
+      this.cementedcount = this._io.readU8be();
+      this.uncheckedcount = this._io.readU8be();
+      this.accountcount = this._io.readU8be();
+      this.bandwidthcap = this._io.readU8be();
+      this.uptime = this._io.readU8be();
+      this.peercount = this._io.readU4be();
+      this.protocolversion = this._io.readU1();
+      this.genesisblock = this._io.readBytes(32);
+      this.majorversion = this._io.readU1();
+      this.minorversion = this._io.readU1();
+      this.patchversion = this._io.readU1();
+      this.prereleaseversion = this._io.readU1();
+      this.maker = this._io.readU1();
+      this.timestamp = this._io.readU8be();
+      this.activedifficulty = this._io.readU8be();
+    }
+
+    /**
+     * Signature (Big endian)
+     */
+
+    /**
+     * Public node id (Big endian)
+     */
+
+    /**
+     * Block count
+     */
+
+    /**
+     * Cemented block count
+     */
+
+    /**
+     * Unchecked block count
+     */
+
+    /**
+     * Account count
+     */
+
+    /**
+     * Bandwidth limit, 0 indiciates unlimited
+     */
+
+    /**
+     * Length of time a peer has been running for (in seconds)
+     */
+
+    /**
+     * Peer count
+     */
+
+    /**
+     * Protocol version
+     */
+
+    /**
+     * Genesis block hash (Big endian)
+     */
+
+    /**
+     * Major version
+     */
+
+    /**
+     * Minor version
+     */
+
+    /**
+     * Patch version
+     */
+
+    /**
+     * Pre-release version
+     */
+
+    /**
+     * Maker version. 0 indicates it is from the Nano Foundation, there is no standardised list yet for any others.
+     */
+
+    /**
+     * Number of milliseconds since the UTC epoch
+     */
+
+    /**
+     * The current network active difficulty.
+     */
+
+    return MsgTelemetryAck;
   })();
   Object.defineProperty(Nano.prototype, 'constBlockZero', {
     get: function() {
