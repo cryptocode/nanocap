@@ -29,7 +29,7 @@ RUN git clone https://github.com/cryptocode/nanocap.git .
 
 RUN conan remote add bincrafters https://api.bintray.com/conan/bincrafters/public-conan
 RUN conan install . --build=missing -s compiler.libcxx=libstdc++11
-RUN cmake -G "Unix Makefiles" .
+RUN cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -G "Unix Makefiles" .
 RUN make
 
 CMD bin/nanocap --help
