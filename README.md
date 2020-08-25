@@ -84,7 +84,7 @@ sudo build/bin/nanocap
 If on Docker, map the config file and run nanocap like this:
 
 ```
-docker run --net=host \
+docker run --net=host -p 8077:8077 \
 	-v `pwd`/nanocap.config:/nanocap/nanocap.config \
 	cryptocode/nanocap bin/nanocap
 ```
@@ -144,7 +144,7 @@ Finally, generate the build file:
 
 ```
 $ mkdir build && cd build
-$ cmake .. -G <generator>
+$ cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo  -G <generator>
 ```
 
 Check if it works:
