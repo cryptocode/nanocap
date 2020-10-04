@@ -44,9 +44,6 @@ if (NANOCAP_GENERATE_PARSER)
 	)
 endif ()
 
-#add_executable(reassembly src/reassembly/main.cpp)
-#target_link_libraries(reassembly ${CONAN_LIBS} ${Boost_LIBRARIES})
-
 # Blake2
 if(SSE STREQUAL "None")
 	file(GLOB_RECURSE blake2_sources
@@ -84,7 +81,4 @@ target_link_libraries(nanocap blake2b sqlite sqlitecpp CONAN_PKG::boost_system C
 if (APPLE)
 	target_link_libraries(nanocap "-framework CoreFoundation")
 	target_link_libraries(nanocap "-framework SystemConfiguration")
-
-	#target_link_libraries(reassembly "-framework CoreFoundation")
-	#target_link_libraries(reassembly "-framework SystemConfiguration")
 endif ()
