@@ -46,6 +46,8 @@ void nanocap::webserver::start()
 		status["importing"] = app.get_handler().is_file_importing();
 		status["max_db_size_reached"] = app.get_db().max_reached.load();
 		status["version"] = app.VERSION;
+		status["packet_queue_size"] = app.get_handler().packet_queue_size();
+		status["packet_parse_error_count"] = app.get_handler().packet_parse_error_count.load();
 		response->write(status.dump(4));
 	};
 
@@ -96,7 +98,18 @@ void nanocap::webserver::start()
 
 	server.resource["^/api/v1/capture/destroy$"]["GET"] = [this](std::shared_ptr<HttpServer::Response> response, std::shared_ptr<HttpServer::Request> request)
 	{
+		bool is_capturing = app.get_handler().is_live_capturing();
+		if (is_capturing)
+		{
+			app.get_handler().stop_capture();
+		}
+
 		app.get_db().destroy_capture_data();
+
+		if (is_capturing)
+		{
+			app.get_handler().start_capture();
+		}
 		response->write("{}");
 	};
 

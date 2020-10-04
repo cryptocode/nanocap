@@ -89,7 +89,7 @@ namespace nano {
             };
 
             enum protocol_version_t {
-                PROTOCOL_VERSION_VALUE = 17
+                PROTOCOL_VERSION_VALUE = 18
             };
 
             nano_t(kaitai::kstream* p__io, kaitai::kstruct* p__parent = 0, nano_t* p__root = 0);
@@ -1014,7 +1014,7 @@ namespace nano {
             };
 
             /**
-             * Response of the msg_bulk_pull_account message. The structure depends on the 
+             * Response of the msg_bulk_pull_account message. The structure depends on the
              * flags that was passed to the query.
              */
 

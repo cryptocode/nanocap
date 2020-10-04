@@ -31,6 +31,7 @@ void nanocap::app::launch(int argc, char** argv)
 		boost::program_options::options_description desc("Options");
 		desc.add_options()
 		("help", "Print help messages")
+		("version", "Print version")
 		("pcap", boost::program_options::value(&pcap_src), "Populate database using this pcap file")
 		("if", "List interfaces and ip addresses");
 		
@@ -39,6 +40,11 @@ void nanocap::app::launch(int argc, char** argv)
 		if (option_map.count("help"))
 		{
 			std::cout << "nanocap" << std::endl << desc << std::endl;
+			std::exit(0);
+		}
+		else if (option_map.count("version"))
+		{
+			// The constructor always prints version info, so all we need to do is quit
 			std::exit(0);
 		}
 		
@@ -58,11 +64,20 @@ void nanocap::app::launch(int argc, char** argv)
 	}
 }
 
+namespace
+{
+	boost::asio::io_context io_ctx;
+}
+
 void sig_handler(const boost::system::error_code& error, int signal_number)
 {
 	std::cout << "Stopping due to signal " << signal_number << ". Please wait..." << std::endl;
+	application.get_handler().stop_packet_processing_thread();
+	std::cout << "Stopping capture" << std::endl;
 	application.get_handler().stop_capture();
-	std::exit(0);
+	std::cout << "Stopping I/O" << std::endl;
+	io_ctx.stop();
+	std::cout << "Exiting" << std::endl;
 }
 
 /**
@@ -70,8 +85,6 @@ void sig_handler(const boost::system::error_code& error, int signal_number)
  */
 int main(int argc, char* argv[])
 {
-	boost::asio::io_context io_ctx;
-	
 	try
 	{
 		application.launch(argc, argv);
@@ -104,7 +117,7 @@ int main(int argc, char* argv[])
 		{
 			std::cout << termcolor::bold << "Press ctrl-c to stop" << termcolor::reset << std::endl;
 
-			boost::asio::signal_set signals(io_ctx, SIGINT);
+			boost::asio::signal_set signals(io_ctx, SIGINT, SIGTERM);
 			signals.async_wait(sig_handler);
 			io_ctx.run();
 		}

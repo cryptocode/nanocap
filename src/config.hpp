@@ -20,9 +20,11 @@ namespace nanocap
 		/** Maximum estimated database size in MB, by default 4GB. Live capture or pcap import is aborted if necessary. */
 		int64_t max_capture_megabytes {4096};
 		/** If true, save block details. If false, save only block type. */
-		bool block_details {false};
-		/** If true, save bootstrap replies (this requires potentially huge amounts of disk space). If false, only save requests. */
+		bool block_details {true};
+		/** If true, save bootstrap details (this requires potentially huge amounts of disk space). If false, only save requests. */
 		bool bootstrap_details {false};
+		/** If true, save detailed connection traces. This increases packet processing speed and disk space usage. */
+		bool connection_details {true};
 	};
 
 	/** Web/REST server configuration */
@@ -54,7 +56,8 @@ namespace nanocap
 			{"filter", capture.filter},
 			{"max_capture_megabytes", capture.max_capture_megabytes},
 			{"block_details", capture.block_details},
-			{"bootstrap_details", capture.bootstrap_details}
+			{"bootstrap_details", capture.bootstrap_details},
+			{"connection_details", capture.connection_details},
 		};
 	}
 	
@@ -72,6 +75,8 @@ namespace nanocap
 			json.at("block_details").get_to(capture.block_details);
 		if (json.count("bootstrap_details"))
 			json.at("bootstrap_details").get_to(capture.bootstrap_details);
+		if (json.count("connection_details"))
+			json.at("connection_details").get_to(capture.connection_details);
 	}
 	
 	inline void to_json(nlohmann::json& json, const config_web& web)

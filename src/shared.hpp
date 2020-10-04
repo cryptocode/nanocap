@@ -22,6 +22,7 @@ namespace nanocap
 		uint8_t ip_version;
 		std::string data;
 		int side;
+		uint32_t flow_key{0};
 		std::shared_ptr<tcp_flow_data> flow_data;
 	};
 }

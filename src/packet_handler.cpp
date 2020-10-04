@@ -20,13 +20,41 @@
 
 namespace
 {
+	bool hasMissingData(const uint8_t* data, size_t len)
+	{
+		// When there's pcap packet loss, we'll get a message of format [nnn bytes missing](incomplete data)
+		// A later version of Pcap++ will provide a better loss-detection mechanism.
+		if (len > 16 && data[0] == '[')
+		{
+			for (int i = 0; i+3 < len; i++)
+			{
+				if (data[i] == 'i' && data[i+1] == 'n' && data[i+2] == 'g' && data[i+3] == ']')
+				{
+					std::string str((const char*)data, i+3);
+					//std::cout << str << std::endl;
+					return true;
+				}
+			}
+			return false;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
 	/**
-	 * Called when new data on a connection is available. To prevent pcap from dropping packets, we
+	 * Called when new data on a connection is available. To help prevent pcap from dropping packets, we
 	 * copy the needed connection data and payload. This is then put on a queue which is processed
 	 * by a separate thread.
 	 */
 	void tcpReassemblyMsgReadyCallback(int sideIndex, const pcpp::TcpStreamData& tcpData, void* userCookie)
 	{
+		if (tcpData.getDataLength() == 0)
+		{
+			std::cout << "WARNING: Empty data" << std::endl;
+			return;
+		}
 		auto handler = static_cast<nanocap::packet_handler*> (userCookie);
 		auto flow_data = handler->connMgr.find(tcpData.getConnectionData().flowKey);
 
@@ -36,7 +64,13 @@ namespace
 			handler->connMgr.insert(std::make_pair(tcpData.getConnectionData().flowKey, std::make_shared<nanocap::tcp_flow_data>()));
 			flow_data = handler->connMgr.find(tcpData.getConnectionData().flowKey);
 		}
-		
+
+		if (hasMissingData(tcpData.getData(), tcpData.getDataLength()))
+		{
+			std::cout << "Packet loss detected. Current message type: " << flow_data->second->current_msg_type << std::endl;
+			return;
+		}
+
 		std::unique_lock<std::mutex> lk(handler->packet_queue_mutex);
 		handler->packet_queue.emplace_back();
 		nanocap::nano_packet& info = handler->packet_queue.back();
@@ -48,10 +82,11 @@ namespace
 		info.timestamp_usec = tcpData.getConnectionData().endTime.tv_usec;
 		info.ip_version = tcpData.getConnectionData().srcIP->getType() == pcpp::IPAddress::AddressType::IPv4AddressType ? 4 : 6;
 		
-		// Copy data for later processing on a separate thread
+		// Copy data for later handling on the processing thread
 		info.data = std::string(reinterpret_cast<const char*>(tcpData.getData()), tcpData.getDataLength());
 		info.side = sideIndex;
 		info.flow_data = flow_data->second;
+		info.flow_key = tcpData.getConnectionData().flowKey;
 
 		// Notify processing thread
 		lk.unlock();
@@ -64,11 +99,15 @@ namespace
 		auto data = handler->connMgr.find(connectionData.flowKey);
 
 		int ipv = connectionData.srcIP->getType() == pcpp::IPAddress::AddressType::IPv4AddressType ? 4 : 6;
-		handler->get_app().get_db().put_connection(ipv, connectionData.srcIP->toString(), connectionData.srcPort, connectionData.dstIP->toString(), connectionData.dstPort, false);
+		handler->get_app().get_db().put_connection(ipv, connectionData.srcIP->toString(), connectionData.srcPort, connectionData.dstIP->toString(), connectionData.dstPort, connectionData.flowKey, "open connection");
 
 		if (data == handler->connMgr.end())
 		{
 			handler->connMgr.insert(std::make_pair(connectionData.flowKey, std::make_shared<nanocap::tcp_flow_data>()));
+		}
+		else
+		{
+			data->second->reset();
 		}
 	}
 
@@ -78,11 +117,12 @@ namespace
 		auto data = handler->connMgr.find(connectionData.flowKey);
 		
 		int ipv = connectionData.srcIP->getType() == pcpp::IPAddress::AddressType::IPv4AddressType ? 4 : 6;
-		handler->get_app().get_db().put_connection(ipv, connectionData.srcIP->toString(), connectionData.srcPort, connectionData.dstIP->toString(), connectionData.dstPort, true);
+		handler->get_app().get_db().put_connection(ipv, connectionData.srcIP->toString(), connectionData.srcPort, connectionData.dstIP->toString(), connectionData.dstPort, connectionData.flowKey, "close connection");
 
 		if (data != handler->connMgr.end())
 		{
-			handler->connMgr.erase(data);
+			// Sometimes connection callbacks are invoked before the last reassembly callback
+			//handler->connMgr.erase(data);
 		}
 	}
 
@@ -91,11 +131,7 @@ namespace
 		pcpp::Packet parsed_packet(packet);
 		nanocap::packet_handler* handler = static_cast<nanocap::packet_handler*>(cookie);
 
-		if (parsed_packet.isPacketOfType(pcpp::UDP))
-		{
-			handler->handle_udp(parsed_packet);
-		}
-		else if (parsed_packet.isPacketOfType(pcpp::TCP))
+		if (parsed_packet.isPacketOfType(pcpp::TCP))
 		{
 			handler->tcpReassembly->reassemblePacket(packet);
 		}
@@ -109,10 +145,16 @@ nanocap::packet_handler::packet_handler(nanocap::app& app) : app (app), packet_p
 	tcpReassembly = std::make_unique<pcpp::TcpReassembly> (tcpReassemblyMsgReadyCallback, this, tcpReassemblyConnectionStartCallback, tcpReassemblyConnectionEndCallback);
 }
 
+void nanocap::packet_handler::stop_packet_processing_thread()
+{
+	stopped = true;
+	packet_queue_cond.notify_all();
+}
+
 nanocap::packet_handler::~packet_handler()
 {
 	print_stats();
-	stopped = true;
+	stop_packet_processing_thread();
 	packet_processing_thread.join();
 }
 
@@ -162,7 +204,9 @@ void nanocap::packet_handler::analyze_pcap_file(std::string path)
 			}
 		}
 
+		tcpReassembly->closeAllConnections();
 		reader->close();
+		delete reader;
 	}
 
 	importing = false;
@@ -213,6 +257,7 @@ void nanocap::packet_handler::start_capture()
 			{
 				std::cerr << "Could not set filter: " << app.get_config().capture.filter << std::endl;
 				dev->close();
+				tcpReassembly->closeAllConnections();
 				std::exit(0);
 			}
 		}
@@ -235,17 +280,28 @@ void nanocap::packet_handler::stop_capture()
 	}
 }
 
+size_t nanocap::packet_handler::packet_queue_size()
+{
+	std::unique_lock<std::mutex> lk(packet_queue_mutex);
+	return packet_queue.size();
+}
+
 void nanocap::packet_handler::run_packet_processing_loop()
 {
 	while(!stopped)
 	{
-		std::unique_lock<std::mutex> locker(packet_queue_mutex);
-		packet_queue_cond.wait(locker, [this](){return packet_queue.size() > 0;});
+		std::unique_lock<std::mutex> lk(packet_queue_mutex);
+		packet_queue_cond.wait_for(lk, std::chrono::milliseconds(500), [this](){ return stopped || packet_queue.size() > 0; });
 
-		auto info = packet_queue.back();
-		packet_queue.pop_back();
+		while (!stopped && packet_queue.size() > 0)
+		{
+			auto info = packet_queue.front();
+			packet_queue.pop_front();
 
-		handle_tcp(info);
+			lk.unlock();
+			handle_tcp(info);
+			lk.lock();
+		}
 	}
 }
 
@@ -268,9 +324,7 @@ void nanocap::packet_handler::handle_tcp(nanocap::nano_packet& info)
 		using bufferstream = boost::iostreams::stream<boost::iostreams::array_source>;
 		
 		// First, check for bootstrap responses. These are not Nano messages, but a stream of data representing replies.
-		// NOTE: currently, only frontier responses are handled
-		if (app.get_config().capture.bootstrap_details && info.data.size() > 0 &&
-			info.flow_data->current_msg_type == nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_FRONTIER_REQ)
+		if (info.flow_data->current_msg_type == nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_FRONTIER_REQ && info.data.size() > 0)
 		{
 			std::copy(info.data.begin(), info.data.end(), std::back_inserter(info.flow_data->accumulated_data));
 			
@@ -285,22 +339,184 @@ void nanocap::packet_handler::handle_tcp(nanocap::nano_packet& info)
 				try
 				{
 					nano::protocol::nano_t::frontier_response_t::frontier_entry_t entry(&ks);
+					
+					// End of response?
 					bool all_zero = entry.account().find_first_not_of((char)0) == std::string::npos;
 					if (all_zero)
 					{
 						// Enable new types of messages on the same connection
-						info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_INVALID;
-						info.flow_data->accumulated_data.clear();
+						if (app.get_config().capture.bootstrap_details)
+						{
+							std::string event("end of frontier_req, responses. valid: " + std::to_string(info.flow_data->response_count) + ", invalid: " + std::to_string(info.flow_data->invalid_response_count));
+							get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, event);
+						}
+						info.flow_data->reset();
 						break;
 					}
-					
-					this->get_app().get_db().put(entry, info);
+
+					if (app.get_config().capture.bootstrap_details)
+					{
+						get_app().get_db().put(entry, info);
+					}
+					++info.flow_data->response_count;
+					info.flow_data->accumulated_data.erase(info.flow_data->accumulated_data.begin(), info.flow_data->accumulated_data.begin() + ks.pos());
+				}
+				catch (std::runtime_error & ex)
+				{
+					++info.flow_data->invalid_response_count;
+					std::cerr << "Could not read req response. Accumulated size: "<<info.flow_data->accumulated_data.size()<<" , Data size is: " << info.data.size() << std::endl;
+					break;
+				}
+			}
+		}
+		else if (info.flow_data->current_msg_type == nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PULL && info.data.size() > 0)
+		{
+			std::copy(info.data.begin(), info.data.end(), std::back_inserter(info.flow_data->accumulated_data));
+			
+			while (info.flow_data->accumulated_data.size() > 0)
+			{
+				// Avoid spending time parsing after end-of-stream sentinel
+				if (info.flow_data->accumulated_data.at(0) == nano::protocol::nano_t::ENUM_BLOCKTYPE_NOT_A_BLOCK)
+				{
+					if (app.get_config().capture.bootstrap_details)
+					{
+						std::string event("end of bulk_pull. valid entries: " + std::to_string(info.flow_data->response_count) + ", invalid: " + std::to_string(info.flow_data->invalid_response_count));
+						get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, event);
+					}
+					info.flow_data->reset();
+					break;
+				}
+
+				auto contiguous = info.flow_data->accumulated_data.linearize();
+
+				// Size depends on block type, so we give it the entire available buffer and try. Parse errors will be ignored
+				// as it's likely due to insufficient data being available. It will be retried later.
+				bufferstream bs(reinterpret_cast<const char*>(contiguous), info.flow_data->accumulated_data.size());
+				kaitai::kstream ks (&bs);
+
+				try
+				{
+					nano::protocol::nano_t::bulk_pull_response_t::bulk_pull_entry_t entry(&ks);
+					if (app.get_config().capture.bootstrap_details)
+					{
+						get_app().get_db().put(entry, info);
+					}
+					++info.flow_data->response_count;
 
 					info.flow_data->accumulated_data.erase(info.flow_data->accumulated_data.begin(), info.flow_data->accumulated_data.begin() + ks.pos());
 				}
 				catch (std::runtime_error & ex)
 				{
-					std::cerr << "Could not read req response. Accumulated size: "<<info.flow_data->accumulated_data.size()<<" , Data size is: " << info.data.size() << std::endl;
+					// Exceptions may occur as we don't know the block sizes, and parsing is best-effort. We try again after reading more data.
+					break;
+				}
+			}
+		}
+		else if (info.flow_data->current_msg_type == nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PUSH && info.data.size() > 0)
+		{
+			// If we get here, the initial bulk push mesage has been sent, and we're expecting to keep sending blocks until not-a-block
+
+			std::copy(info.data.begin(), info.data.end(), std::back_inserter(info.flow_data->accumulated_data));
+
+			while (info.flow_data->accumulated_data.size() > 0)
+			{
+				// Avoid spending time parsing after end-of-stream sentinel
+				if (info.flow_data->accumulated_data.at(0) == nano::protocol::nano_t::ENUM_BLOCKTYPE_NOT_A_BLOCK)
+				{
+					if (app.get_config().capture.bootstrap_details)
+					{
+						std::string event("end of bulk_push. valid entries: " + std::to_string(info.flow_data->response_count) + ", invalid: " + std::to_string(info.flow_data->invalid_response_count));
+						get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, event);
+					}
+					info.flow_data->reset();
+					break;
+				}
+
+				auto contiguous = info.flow_data->accumulated_data.linearize();
+
+				// Size depends on block type, so we give it the entire available buffer and try. Parse errors will be ignored
+				// as it's likely due to insufficient data being available. It will be retried later.
+				bufferstream bs(reinterpret_cast<const char*>(contiguous), info.flow_data->accumulated_data.size());
+				kaitai::kstream ks (&bs);
+
+				try
+				{
+					nano::protocol::nano_t::msg_bulk_push_t::bulk_push_entry_t entry(&ks);
+					if (app.get_config().capture.bootstrap_details)
+					{
+						get_app().get_db().put(entry, info);
+					}
+					++info.flow_data->response_count;
+
+					info.flow_data->accumulated_data.erase(info.flow_data->accumulated_data.begin(), info.flow_data->accumulated_data.begin() + ks.pos());
+				}
+				catch (std::runtime_error & ex)
+				{
+					// Exceptions may occur as we don't know the block sizes, and parsing is best-effort. We try again after reading more data.
+					break;
+				}
+			}
+
+		}
+		else if (info.flow_data->current_msg_type == nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PULL_ACCOUNT && info.data.size() > 0)
+		{
+			std::copy(info.data.begin(), info.data.end(), std::back_inserter(info.flow_data->accumulated_data));
+
+			while (info.flow_data->accumulated_data.size() > 0)
+			{
+				auto contiguous = info.flow_data->accumulated_data.linearize();
+
+				// Size depends on block type, so we give it the entire available buffer and try. Parse errors will be ignored
+				// as it's likely due to insufficient data being available. It will be retried later.
+				bufferstream bs(reinterpret_cast<const char*>(contiguous), info.flow_data->accumulated_data.size());
+				kaitai::kstream ks (&bs);
+
+				try
+				{
+					if (info.flow_data->step == 0)
+					{
+						nano::protocol::nano_t::bulk_pull_account_response_t::frontier_balance_entry_t entry(&ks);
+
+						if (app.get_config().capture.bootstrap_details)
+						{
+							get_app().get_db().put(entry, info);
+						}
+
+						info.flow_data->accumulated_data.erase(info.flow_data->accumulated_data.begin(), info.flow_data->accumulated_data.begin() + ks.pos());
+
+						// Next step is reading bulk_pull_account_entry until zero-block
+						info.flow_data->step++;
+					}
+					if (info.flow_data->step == 1)
+					{
+						nano::protocol::nano_t::bulk_pull_account_response_t::bulk_pull_account_entry_t entry(info.flow_data->request_flags, &ks);
+
+						// Reset if last entry. BULK_PULL_ACCOUNT is a bit complicated due to query parameters, so we have to check both source and hash for all-zero values.
+						if (entry.source().find_first_not_of((char)0) == std::string::npos ||
+							entry.hash().find_first_not_of((char)0) == std::string::npos)
+						{
+							if (app.get_config().capture.bootstrap_details)
+							{
+								std::string event("end of bulk_pull_account. valid entries: " + std::to_string(info.flow_data->response_count) + ", invalid: " + std::to_string(info.flow_data->invalid_response_count));
+								get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, event);
+							}
+
+							info.flow_data->reset();
+						}
+						else
+						{
+							if (app.get_config().capture.bootstrap_details)
+							{
+								get_app().get_db().put(entry, info);
+							}
+
+							++info.flow_data->response_count;
+						}
+					}
+				}
+				catch (std::runtime_error & ex)
+				{
+					// Exceptions may occur as we don't know the block sizes, and parsing is best-effort. We try again after reading more data.
 					break;
 				}
 			}
@@ -309,6 +525,8 @@ void nanocap::packet_handler::handle_tcp(nanocap::nano_packet& info)
 		{
 			kaitai::kstream ks (info.data);
 			nano::protocol::nano_t proto (&ks);
+
+			info.flow_data->reset();
 
 			switch (proto.header()->message_type ())
 			{
@@ -366,12 +584,6 @@ void nanocap::packet_handler::handle_tcp(nanocap::nano_packet& info)
 					this->handle_message (*msg, info);
 					break;
 				}
-				case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL_BLOCKS:
-				{
-					nano::protocol::nano_t::msg_bulk_pull_blocks_t* msg = static_cast<nano::protocol::nano_t::msg_bulk_pull_blocks_t*> (proto.body ());
-					this->handle_message (*msg, info);
-					break;
-				}
 				case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL_ACCOUNT:
 				{
 					nano::protocol::nano_t::msg_bulk_pull_account_t* msg = static_cast<nano::protocol::nano_t::msg_bulk_pull_account_t*> (proto.body ());
@@ -390,12 +602,19 @@ void nanocap::packet_handler::handle_tcp(nanocap::nano_packet& info)
 					this->handle_message (*msg, info);
 					break;
 				}
+				case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL_BLOCKS:
+				{
+					// This message type is no longer used by the node
+					break;
+				}
 			}
 		}
 	}
 	catch (std::runtime_error & ex)
 	{
 		// Invalid payloads are to be expected
+		// std::cerr << "Unknown payload" << std::endl;
+		packet_parse_error_count++;
 	}
 	catch (...)
 	{
@@ -403,151 +622,15 @@ void nanocap::packet_handler::handle_tcp(nanocap::nano_packet& info)
 	}
 }
 
-void nanocap::packet_handler::handle_udp(pcpp::Packet& packet)
-{
-	static long consumed = 0;
-	try
-	{
-		if (++consumed % 10000 == 0)
-		{
-			if (dev && app.get_db().max_reached)
-			{
-				std::cout << termcolor::yellow << termcolor::bold << "Captured stopped: reached maximum database size." << termcolor::reset << std::endl;
-				dev->stopCapture();
-			}
-		}
-
-		using bufferstream = boost::iostreams::stream<boost::iostreams::array_source>;
-
-		nano_packet info;
-		auto udp = packet.getLayerOfType<pcpp::UdpLayer>();
-		std::string srcIp, dstIp;
-		if (packet.isPacketOfType(pcpp::IPv4))
-		{
-			info.ip_version = 4;
-			auto ip = (pcpp::IPv4Layer*) udp->getPrevLayer();
-			info.src_ip = ip->getSrcIpAddress().toString();
-			info.dst_ip = ip->getDstIpAddress().toString();
-		}
-		else
-		{
-			info.ip_version = 6;
-			auto ip = (pcpp::IPv6Layer*) udp->getPrevLayer();
-			info.src_ip = ip->getSrcIpAddress().toString();
-			info.dst_ip = ip->getDstIpAddress().toString();
-		}
-
-		info.dst_port = boost::endian::big_to_native(udp->getUdpHeader()->portDst);
-		info.src_port = boost::endian::big_to_native(udp->getUdpHeader()->portSrc);
-		info.timestamp = packet.getRawPacketReadOnly()->getPacketTimeStamp().tv_sec;
-		info.timestamp_usec = packet.getRawPacketReadOnly()->getPacketTimeStamp().tv_usec;
-
-		auto data = packet.getLastLayer()->getData();
-		auto len = packet.getLastLayer()->getDataLen();
-		std::string str (reinterpret_cast<char*>(data), len);
-		bufferstream bs(reinterpret_cast<char*>(data), len);
-
-		kaitai::kstream ks (&bs);
-		nano::protocol::nano_t proto (&ks);
-
-		switch (proto.header()->message_type ())
-		{
-			case nano::protocol::nano_t::ENUM_MSGTYPE_INVALID:
-			{
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_NOT_A_TYPE:
-			{
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_KEEPALIVE:
-			{
-				nano::protocol::nano_t::msg_keepalive_t* msg = static_cast<nano::protocol::nano_t::msg_keepalive_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_CONFIRM_ACK:
-			{
-				nano::protocol::nano_t::msg_confirm_ack_t* msg = static_cast<nano::protocol::nano_t::msg_confirm_ack_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_CONFIRM_REQ:
-			{
-				nano::protocol::nano_t::msg_confirm_req_t* msg = static_cast<nano::protocol::nano_t::msg_confirm_req_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_PUBLISH: {
-				nano::protocol::nano_t::msg_publish_t* msg = static_cast<nano::protocol::nano_t::msg_publish_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_NODE_ID_HANDSHAKE: {
-				nano::protocol::nano_t::msg_node_id_handshake_t* msg = static_cast<nano::protocol::nano_t::msg_node_id_handshake_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL:
-			{
-				nano::protocol::nano_t::msg_bulk_pull_t* msg = static_cast<nano::protocol::nano_t::msg_bulk_pull_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PUSH:
-			{
-				nano::protocol::nano_t::msg_bulk_push_t* msg = static_cast<nano::protocol::nano_t::msg_bulk_push_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_FRONTIER_REQ:
-			{
-				nano::protocol::nano_t::msg_frontier_req_t* msg = static_cast<nano::protocol::nano_t::msg_frontier_req_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL_BLOCKS:
-			{
-				nano::protocol::nano_t::msg_bulk_pull_blocks_t* msg = static_cast<nano::protocol::nano_t::msg_bulk_pull_blocks_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL_ACCOUNT:
-			{
-				nano::protocol::nano_t::msg_bulk_pull_account_t* msg = static_cast<nano::protocol::nano_t::msg_bulk_pull_account_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_TELEMETRY_REQ:
-			{
-				nano::protocol::nano_t::msg_telemetry_req_t* msg = static_cast<nano::protocol::nano_t::msg_telemetry_req_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-			case nano::protocol::nano_t::ENUM_MSGTYPE_TELEMETRY_ACK:
-			{
-				nano::protocol::nano_t::msg_telemetry_ack_t* msg = static_cast<nano::protocol::nano_t::msg_telemetry_ack_t*> (proto.body ());
-				this->handle_message (*msg, info);
-				break;
-			}
-		}
-	}
-	catch (std::runtime_error & ex)
-	{
-		std::cerr << "Error while parsing payload: " << ex.what() << std::endl;
-	}
-	catch (...)
-	{
-		std::cerr << "An unknown error occurred while parsing payload" << std::endl;
-	}
-}
-
 void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_keepalive_t & msg, nanocap::nano_packet& info)
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_KEEPALIVE;
-		info.flow_data->accumulated_data.clear();
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_KEEPALIVE);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "keepalive");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -557,7 +640,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_confir
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_CONFIRM_ACK;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_CONFIRM_ACK);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "confirm_ack");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -567,7 +654,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_confir
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_CONFIRM_REQ;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_CONFIRM_REQ);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "confirm_req");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -577,7 +668,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_publis
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_PUBLISH;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_PUBLISH);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "publish");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -587,7 +682,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_node_i
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_NODE_ID_HANDSHAKE;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_NODE_ID_HANDSHAKE);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "node_id_handshake");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -597,8 +696,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_fronti
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_FRONTIER_REQ;
-		info.flow_data->requesting_side = info.side;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_FRONTIER_REQ);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "frontier_req");
+		}
 	}
 	app.get_db().put(msg, info);
 }
@@ -607,7 +709,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_teleme
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_TELEMETRY_REQ;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_TELEMETRY_REQ);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "telemetry_req");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -617,7 +723,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_teleme
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_TELEMETRY_ACK;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_TELEMETRY_ACK);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "telemetry_ack");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -627,17 +737,11 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_bulk_p
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PULL;
-	}
-
-	app.get_db().put(msg, info);
-}
-
-void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_bulk_pull_blocks_t & msg, nano_packet& info)
-{
-	if (info.flow_data)
-	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PULL_BLOCKS;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PULL);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "bulk_pull");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -645,9 +749,15 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_bulk_p
 
 void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_bulk_push_t & msg, nano_packet& info)
 {
+	// Bulk push message doesn't contain any data, but is followed by a stream of bulk push entries until not-a-block
+	// This is handled in the reassembly handler based on current_msg_type
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PUSH;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PUSH);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "bulk_push");
+		}
 	}
 
 	app.get_db().put(msg, info);
@@ -657,7 +767,12 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_bulk_p
 {
 	if (info.flow_data)
 	{
-		info.flow_data->current_msg_type = nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PULL_ACCOUNT;
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_BULK_PULL_ACCOUNT);
+		info.flow_data->request_flags = static_cast<uint64_t> (msg.flags());
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "bulk_pull_account");
+		}
 	}
 
 	app.get_db().put(msg, info);

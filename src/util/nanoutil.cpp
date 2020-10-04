@@ -1,3 +1,4 @@
+#include <strstream>
 #include <util/nanoutil.hpp>
 #include <blake2.h>
 #include <assert.h>
@@ -24,7 +25,18 @@ boost::multiprecision::uint256_t number (std::string bytes)
 	return result;
 }
 
-std::string nanocap::pub_to_account (std::string public_bytes)
+std::string nanocap::balance_to_dec(std::string const& balance_raw_bytes)
+{
+	boost::multiprecision::uint128_t balance;
+	boost::multiprecision::import_bits (balance, (uint8_t*)balance_raw_bytes.data (), (uint8_t*)(balance_raw_bytes.data () + 16));
+
+	std::stringstream stream;
+	stream << std::dec << std::noshowbase;
+	stream << balance;
+	return stream.str ();
+}
+
+std::string nanocap::pub_to_account (std::string const& public_bytes)
 {
 	std::string destination_a;
 	destination_a.reserve (64);
