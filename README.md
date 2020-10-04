@@ -15,9 +15,11 @@ Features:
 
 # Getting started
 
-For Linux, the easiest way to get started with nanocap is Docker. However, running nanocap in a container may affect packet capture performance. Hence, running an optimized build on the host is recommended to ensure good performance under heavy network load.
+For Linux, the easiest way to get started with nanocap is Docker. However, running an optimized build directly on the host is recommended to ensure good performance under heavy network load.
 
 On macOS, Docker runs in virtualized environment where --net=host doesn't really work. For live traffic capture, building from source is thus recommended.
+
+**Disclaimer: Captured traffic may not accurately reflect the data seen by the node: libpcap may drop packets under heavy load, and there may be bugs.**
 
 ## Docker
 
@@ -41,7 +43,7 @@ docker run --net=host cryptocode/nanocap bin/nanocap --if
 
 ## Configure
 
-Before running nanocap, create `nanocap.config` on the host.
+Before running nanocap, make sure `nanocap.config` exists the host.
 
 If `device_ip` is empty/not present, nanocap tries to guess the interface (this is printed to console.) Leaving it blank is convenient if you frequently switch between multiple local networks.
 
@@ -50,12 +52,13 @@ You can replace `device_ip` with the IP from the above `nanocap --if` command.
 ```
 {
     "capture": {
-        "device_ip": "192.168.0.135",
+        "device_ip": "192.168.0.135", // optional
         "enabled": false,
-        "filter": "(tcp port 7075 or udp port 7075)",
+        "filter": "(tcp port 7075 or tcp port 54000)",
         "max_capture_megabytes": 8192,
         "block_details": true,
-        "bootstrap_details": false
+        "bootstrap_details": false,
+        "connection_details": false
     },
     "database": "capture.db",
     "web": {
@@ -67,13 +70,13 @@ You can replace `device_ip` with the IP from the above `nanocap --if` command.
 }
 ```
 
-If `bootstrap_details` is true, all bootstrap response data will be captured to tables such as `frontier_response`. This may
-cause significant amounts of data to be stored (note that inbound bootstrap requests are captured as well). You may need
-to increase `max_capture_megabytes` for long captures.
+### Capturing details
 
-Likewise, if `block_details` is set, hashes and block details are added to the database for live messages.
+* If `block_details` is true, hashes and block details are added to the database.
+* If `bootstrap_details` is true, all bootstrap response data will be captured to tables such as `frontier_response`. Note that responses to inbound bootstrap requests are captured as well.
+* If `connection_details` is true, the `connection` table is populated with detailed activity information.
 
-Both settings may increase pcap import times.
+All these settings may cause significant amounts of data to be stored, and will increase pcap import times. You may need to increase `max_capture_megabytes` for long captures.
 
 ## Capture live traffic
 
@@ -226,6 +229,19 @@ Note that capturing bootstrap responses requires "bootstrap_details" to be true 
 select req.id, count(*) from frontier_request req, frontier_response res where res.frontier_request_id = req.id group by req.id
 ```
 
+## Connection trace
+
+If the `connection_details` config setting is true, you can follow all activity on a given connection. In addition to connections being opened
+and closed, message flow on the connection is logged. For instance, if you suspect there's an issue with a given node, find it's flowkey by querying the `connection` table for its IP. Since an IP can be involved in multiple connections, you can narrow down the search by querying a specific flow key (which corresponds to a connection)
+
+```
+select * from connection where event like 'end of %'
+select * from connection where flowkey = 4117868068
+```
+
+## Package stats
+
+When Action | Toggle capture is clicked in the web console to stop a capture, the number of packets detected and dropped by libpcap are printed to console.
 
 # REST API
 
