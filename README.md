@@ -52,13 +52,13 @@ You can replace `device_ip` with the IP from the above `nanocap --if` command.
 ```
 {
     "capture": {
-        "device_ip": "192.168.0.135", // optional
+        "device_ip": "192.168.0.135", // optional, use an empty string to let nanocap to guess the interface
         "enabled": false,
         "filter": "(tcp port 7075 or tcp port 54000)",
         "max_capture_megabytes": 8192,
         "block_details": true,
-        "bootstrap_details": false,
-        "connection_details": false
+        "bootstrap_details": true,
+        "connection_details": true
     },
     "database": "capture.db",
     "web": {
