@@ -106,6 +106,16 @@
                     </div>
                     <div class="col-lg-4">
                         <button id="action_query" class="btn btn-primary btn-sm float-right" type="submit">Query</button>
+
+                        <div class="dropdown">
+                          <button class="btn btn-primary float-right btn-sm dropdown-toggle" style="margin-right: 5px;" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            History
+                          </button>
+                          <div id="query_history" class="dropdown-menu history-dropdown" aria-labelledby="dropdownMenuButton">
+                            <!-- populated from local storage -->
+                          </div>
+                        </div>
+
                     </div>
                 </div>
             </div>
@@ -114,6 +124,7 @@
                 <ul id="packet_status" class="list-group">
                     <!-- placeholder -->
                 </ul>
+                <div class="pt-2 row justify-content-md-center"><small><span id="packet_queue_size">0</span> packets awaiting processing</small></div>
             </div>
         </div>
         <p>

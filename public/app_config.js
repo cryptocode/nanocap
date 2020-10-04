@@ -7,6 +7,6 @@ export default class Config {
     init() {
         this.app.router.on('/config', (params) => {
             this.app.show_page('page_config');
-        }).resolve();        
+        });
     }
 }

@@ -81,9 +81,9 @@ var Nano = (function() {
   });
 
   Nano.ProtocolVersion = Object.freeze({
-    VALUE: 17,
+    VALUE: 18,
 
-    17: "VALUE",
+    18: "VALUE",
   });
 
   function Nano(_io, _parent, _root) {
@@ -831,7 +831,7 @@ var Nano = (function() {
   })();
 
   /**
-   * Response of the msg_bulk_pull_account message. The structure depends on the 
+   * Response of the msg_bulk_pull_account message. The structure depends on the
    * flags that was passed to the query.
    */
 

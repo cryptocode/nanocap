@@ -142,6 +142,15 @@ export default class App {
     update_status () {
         $.getJSON("/api/v1/status")
         .done((data) => {
+
+            /*if (data['packet_parse_error_count'] !== undefined) {
+                console.log('packet parse errors: ', data['packet_parse_error_count']);
+            }*/
+
+            if (data['packet_queue_size'] !== undefined) {
+                $('#packet_queue_size').text(data['packet_queue_size']);
+            }
+            
             if (data) {
                 // The html file contain elements with id="status_<name>""
                 for (const name in data) {
@@ -190,14 +199,16 @@ export default class App {
             $("#packet_status").empty();
 
             for (const i in data) {
-                let entry = template.replace(
-                    'TYPE',
-                    this.msg_type_str(data[i].type)).replace('COUNT', data[i].count.toString());
+                if (data[i].count > 0) {
+                    let entry = template.replace(
+                        'TYPE',
+                        this.msg_type_str(data[i].type)).replace('COUNT', data[i].count.toString());
 
-                $("#packet_status").append(entry);
+                    $("#packet_status").append(entry);
+                }
             }
 
-            this.packet_count_interval = 2000;
+            this.packet_count_interval = 1000;
         })
         .fail((jqXHR, textStatus, errorThrown) => {
             // Back off exponentially up to 1 minute

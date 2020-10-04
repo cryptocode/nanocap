@@ -8,7 +8,7 @@ export default class Schema {
         this.app.router.on('/schema', (params) => {
             this.display();
             this.app.show_page('page_schema');
-        }).resolve();
+        });
     }
 
     table (name, rows) {
