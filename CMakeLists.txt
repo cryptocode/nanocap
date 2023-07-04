@@ -9,21 +9,26 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
-# Set up Conan
-include(${CMAKE_SOURCE_DIR}/conanbuildinfo.cmake)
-conan_basic_setup(TARGETS)
 
 # Find Boost
-set(CMAKE_MODULE_PATH ${CONAN_CMAKE_MODULE_PATH} ${CMAKE_MODULE_PATH})
-find_package(Boost 1.66)
+find_package(Boost 1.66 REQUIRED COMPONENTS system filesystem program_options)
 
 # Do not build Kaitai runtime with iconv
 add_definitions(-DKS_STR_ENCODING_NONE)
 
 # Include directories
 include_directories (${CMAKE_SOURCE_DIR}/src)
+include_directories("/usr/local/include/pcapplusplus")
 #include_directories (${Boost_INCLUDE_DIRS})
+
+#Link directories
+link_directories("/usr/local/lib")
+
+# Assuming other libraries are installed and findable
+find_package(JSONForModernCPP REQUIRED)
+find_package(Threads REQUIRED)
 
 # Regenerate parser. The nanocurrency/protocol repository must be
 # added as a submodule when this flag is active.
@@ -45,17 +50,11 @@ if (NANOCAP_GENERATE_PARSER)
 endif ()
 
 # Blake2
-if(SSE STREQUAL "None")
-	file(GLOB_RECURSE blake2_sources
-		"src/blake2/ref/blake2*.h"
-		"src/blake2/ref/blake2*.c")
-	include_directories (src/blake2/ref)
-else()
-	file(GLOB_RECURSE blake2_sources
-		"src/blake2/sse/blake2*.h"
-		"src/blake2/sse/blake2*.c")
-	include_directories (src/blake2/sse)
-endif()
+file(GLOB_RECURSE blake2_sources
+	"src/blake2/ref/blake2*.h"
+	"src/blake2/ref/blake2*.c")
+include_directories (src/blake2/ref)
+
 add_library(blake2b ${blake2_sources})
 
 include_directories (src/sqlite)
@@ -76,7 +75,8 @@ add_executable(nanocap
 	src/util/ctpl_stl.h src/util/termcolor.hpp
 	)
 
-target_link_libraries(nanocap blake2b sqlite sqlitecpp CONAN_PKG::boost_system CONAN_PKG::boost_filesystem CONAN_PKG::boost_program_options CONAN_PKG::boost_asio CONAN_PKG::boost_multiprecision CONAN_PKG::boost_circular_buffer CONAN_PKG::jsonformoderncpp CONAN_PKG::pcapplusplus ${CMAKE_DL_LIBS})
+target_link_libraries(nanocap blake2b sqlite sqlitecpp Boost::system Boost::filesystem Boost::program_options JSONForModernCPP /usr/local/lib/libPacket++.a /usr/local/lib/libPcap++.a /usr/local/lib/libCommon++.a pcap ${CMAKE_THREAD_LIBS_INIT} ${CMAKE_DL_LIBS})
+
 
 if (APPLE)
 	target_link_libraries(nanocap "-framework CoreFoundation")
