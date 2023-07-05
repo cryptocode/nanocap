@@ -736,20 +736,8 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 	bind_header_fields(stmt_packet.get(), msg, packet_id);
 	bind_packet_fields(stmt_packet.get(), info);
 	
-	// Regular vote
-	if (msg.block())
-	{
-		int64_t block_content_id = next_id.fetch_add(1);
-		std::string content_table;
-		put_block(msg.block(), block_content_id, packet_id, content_table);
-		
-		stmt_vote->bind(":content_id", block_content_id);
-		stmt_vote->bind(":content_table", content_table);
-		stmt_vote->bind(":vote_count", 1);
-		stmt_vote->bind(":vbh", 0);
-	}
 	// Vote-by-hash
-	else if (msg.votebyhash() && msg.votebyhash()->hashes() && !msg.votebyhash()->hashes()->empty())
+	if (msg.votebyhash() && msg.votebyhash()->hashes() && !msg.votebyhash()->hashes()->empty())
 	{
 		stmt_vote->bind(":vbh", 1);
 		std::ostringstream hashes;
@@ -779,7 +767,7 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 	{
 		stmt_vote->bind(":account", pub_to_account(msg.common()->account()));
 		stmt_vote->bind(":signature", to_hex(msg.common()->signature()));
-		stmt_vote->bind(":sequence", static_cast<int64_t>(msg.common()->sequence()));
+		stmt_vote->bind(":sequence", static_cast<int64_t>(msg.common()->timestamp_and_vote_duration()));
 	}
 	else
 	{
@@ -891,6 +879,45 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_publish_t& msg, nan
 
 	return ec;
 }
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_asc_pull_ack_t& msg, nanocap::nano_packet& info)
+{	
+    std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+    std::lock_guard<std::mutex> guard (db_mutex);    
+    bind_header_fields(stmt_packet.get(), msg, packet_id);
+    bind_packet_fields(stmt_packet.get(), info);
+	stmt_packet->bind(":content_id", packet_id);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	// Prepare for next use
+	stmt_packet->reset();
+
+    // Continue as per your existing structure
+    return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_asc_pull_req_t& msg, nanocap::nano_packet& info)
+{
+    std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+    std::lock_guard<std::mutex> guard (db_mutex);    
+    bind_header_fields(stmt_packet.get(), msg, packet_id);
+    bind_packet_fields(stmt_packet.get(), info);
+	stmt_packet->bind(":content_id", packet_id);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	// Prepare for next use
+	stmt_packet->reset();
+
+    // Continue as per your existing structure
+    return ec;
+}
+
+
+
 
 // Must be called with db_mutex locked
 std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t* block_selector,

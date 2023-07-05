@@ -38,11 +38,12 @@ var Nano = (function() {
     BULK_PULL: 6,
     BULK_PUSH: 7,
     FRONTIER_REQ: 8,
-    BULK_PULL_BLOCKS: 9,
     NODE_ID_HANDSHAKE: 10,
     BULK_PULL_ACCOUNT: 11,
     TELEMETRY_REQ: 12,
     TELEMETRY_ACK: 13,
+    ASC_PULL_REQ: 14,
+    ASC_PULL_ACK: 15,
 
     0: "INVALID",
     1: "NOT_A_TYPE",
@@ -53,11 +54,12 @@ var Nano = (function() {
     6: "BULK_PULL",
     7: "BULK_PUSH",
     8: "FRONTIER_REQ",
-    9: "BULK_PULL_BLOCKS",
     10: "NODE_ID_HANDSHAKE",
     11: "BULK_PULL_ACCOUNT",
     12: "TELEMETRY_REQ",
     13: "TELEMETRY_ACK",
+    14: "ASC_PULL_REQ",
+    15: "ASC_PULL_ACK",
   });
 
   Nano.EnumNetwork = Object.freeze({
@@ -68,6 +70,14 @@ var Nano = (function() {
     65: "NETWORK_TEST",
     66: "NETWORK_BETA",
     67: "NETWORK_LIVE",
+  });
+
+  Nano.EnumAscHashType = Object.freeze({
+    ACCOUNT_HASH_TYPE: 0,
+    BLOCK_HASH_TYPE: 1,
+
+    0: "ACCOUNT_HASH_TYPE",
+    1: "BLOCK_HASH_TYPE",
   });
 
   Nano.EnumBulkPullAccount = Object.freeze({
@@ -81,9 +91,19 @@ var Nano = (function() {
   });
 
   Nano.ProtocolVersion = Object.freeze({
-    VALUE: 18,
+    VALUE: 19,
 
-    18: "VALUE",
+    19: "VALUE",
+  });
+
+  Nano.EnumAscPullType = Object.freeze({
+    INVALID: 0,
+    BLOCK_PULL_TYPE: 1,
+    ACCOUNT_PULL_TYPE: 2,
+
+    0: "INVALID",
+    1: "BLOCK_PULL_TYPE",
+    2: "ACCOUNT_PULL_TYPE",
   });
 
   function Nano(_io, _parent, _root) {
@@ -111,6 +131,9 @@ var Nano = (function() {
     case Nano.EnumMsgtype.KEEPALIVE:
       this.body = new MsgKeepalive(this._io, this, this._root);
       break;
+    case Nano.EnumMsgtype.ASC_PULL_ACK:
+      this.body = new MsgAscPullAck(this._io, this, this._root);
+      break;
     case Nano.EnumMsgtype.BULK_PUSH:
       this.body = new MsgBulkPush(this._io, this, this._root);
       break;
@@ -123,14 +146,14 @@ var Nano = (function() {
     case Nano.EnumMsgtype.FRONTIER_REQ:
       this.body = new MsgFrontierReq(this._io, this, this._root);
       break;
-    case Nano.EnumMsgtype.BULK_PULL_BLOCKS:
-      this.body = new MsgBulkPullBlocks(this._io, this, this._root);
-      break;
     case Nano.EnumMsgtype.PUBLISH:
       this.body = new MsgPublish(this._io, this, this._root);
       break;
     case Nano.EnumMsgtype.TELEMETRY_REQ:
       this.body = new MsgTelemetryReq(this._io, this, this._root);
+      break;
+    case Nano.EnumMsgtype.ASC_PULL_REQ:
+      this.body = new MsgAscPullReq(this._io, this, this._root);
       break;
     default:
       this.body = new IgnoreUntilEof(this._io, this, this._root);
@@ -441,22 +464,27 @@ var Nano = (function() {
   })();
 
   /**
-   * Deprecated. The server will respond with a single enum_blocktype::not_a_block byte.
+   * Ascending pull sub-header, data common in asc pull packets.
    */
 
-  var MsgBulkPullBlocks = Nano.MsgBulkPullBlocks = (function() {
-    function MsgBulkPullBlocks(_io, _parent, _root) {
+  var AscPullBase = Nano.AscPullBase = (function() {
+    function AscPullBase(_io, _parent, _root) {
       this._io = _io;
       this._parent = _parent;
       this._root = _root || this;
 
       this._read();
     }
-    MsgBulkPullBlocks.prototype._read = function() {
-      this.blockType = this._io.readU1();
+    AscPullBase.prototype._read = function() {
+      this.type = this._io.readU1();
+      this.id = this._io.readU8be();
     }
 
-    return MsgBulkPullBlocks;
+    /**
+     * An identifier to associate replies with requests
+     */
+
+    return AscPullBase;
   })();
 
   var BlockOpen = Nano.BlockOpen = (function() {
@@ -522,7 +550,7 @@ var Nano = (function() {
   })();
 
   /**
-   * Signed confirmation of a block or a list of block hashes
+   * Signed confirmation of a list of block hashes
    */
 
   var MsgConfirmAck = Nano.MsgConfirmAck = (function() {
@@ -535,12 +563,7 @@ var Nano = (function() {
     }
     MsgConfirmAck.prototype._read = function() {
       this.common = new VoteCommon(this._io, this, this._root);
-      if (this._root.header.blockType == Nano.EnumBlocktype.NOT_A_BLOCK) {
-        this.votebyhash = new VoteByHash(this._io, this, this._root);
-      }
-      if (this._root.header.blockType != Nano.EnumBlocktype.NOT_A_BLOCK) {
-        this.block = new BlockSelector(this._io, this, this._root, this._root.header.blockTypeInt);
-      }
+      this.votebyhash = new VoteByHash(this._io, this, this._root);
     }
 
     return MsgConfirmAck;
@@ -669,6 +692,141 @@ var Nano = (function() {
      */
 
     return NodeIdResponse;
+  })();
+
+  /**
+   * ascending pull response
+   */
+
+  var MsgAscPullAck = Nano.MsgAscPullAck = (function() {
+    function MsgAscPullAck(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgAscPullAck.prototype._read = function() {
+      this.base = new AscPullBase(this._io, this, this._root);
+      this._raw_payload = this._io.readBytes(this._root.header.ascPullSize);
+      var _io__raw_payload = new KaitaiStream(this._raw_payload);
+      this.payload = new AscPullAckPayload(_io__raw_payload, this, this._root);
+    }
+
+    /**
+     * ascend pull response account info payload
+     */
+
+    var AccountInfoAckPayload = MsgAscPullAck.AccountInfoAckPayload = (function() {
+      function AccountInfoAckPayload(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      AccountInfoAckPayload.prototype._read = function() {
+        this.account = this._io.readBytes(32);
+        this.accountOpen = this._io.readBytes(32);
+        this.accountHead = this._io.readBytes(32);
+        this.blockCount = this._io.readU8be();
+        this.confFrontier = this._io.readBytes(32);
+        this.confHeight = this._io.readU8be();
+      }
+
+      /**
+       * account being pulled
+       */
+
+      /**
+       * opening block of account
+       */
+
+      /**
+       * block with highest height (can be confirmed or unconfirmed)
+       */
+
+      /**
+       * number of blocks in account (counts confirmed and unconfirmed blocks)
+       */
+
+      /**
+       * block hash of confirmation frontier, confirmed block with highest height
+       */
+
+      /**
+       * Height of highest confirmed block
+       */
+
+      return AccountInfoAckPayload;
+    })();
+
+    /**
+     * ascend pull response block payload
+     */
+
+    var BlocksAckPayload = MsgAscPullAck.BlocksAckPayload = (function() {
+      function BlocksAckPayload(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      BlocksAckPayload.prototype._read = function() {
+        this.entry = []
+        var i = 0;
+        do {
+          var _ = new AscPullEntry(this._io, this, this._root);
+          this.entry.push(_);
+          i++;
+        } while (!( ((this._io.isEof()) || (_.blockType == Nano.EnumBlocktype.NOT_A_BLOCK)) ));
+      }
+
+      var AscPullEntry = BlocksAckPayload.AscPullEntry = (function() {
+        function AscPullEntry(_io, _parent, _root) {
+          this._io = _io;
+          this._parent = _parent;
+          this._root = _root || this;
+
+          this._read();
+        }
+        AscPullEntry.prototype._read = function() {
+          this.blockType = this._io.readU1();
+          this.block = new BlockSelector(this._io, this, this._root, this.blockType);
+        }
+
+        return AscPullEntry;
+      })();
+
+      return BlocksAckPayload;
+    })();
+
+    /**
+     * payload of ascend pull responses
+     */
+
+    var AscPullAckPayload = MsgAscPullAck.AscPullAckPayload = (function() {
+      function AscPullAckPayload(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      AscPullAckPayload.prototype._read = function() {
+        if (this._parent.base.type == Nano.EnumAscPullType.ACCOUNT_PULL_TYPE) {
+          this.accountInfo = new AccountInfoAckPayload(this._io, this, this._root);
+        }
+        if (this._parent.base.type == Nano.EnumAscPullType.BLOCK_PULL_TYPE) {
+          this.blocks = new BlocksAckPayload(this._io, this, this._root);
+        }
+      }
+
+      return AscPullAckPayload;
+    })();
+
+    return MsgAscPullAck;
   })();
 
   /**
@@ -1030,7 +1188,7 @@ var Nano = (function() {
   })();
 
   /**
-   * Common data shared by block votes and vote-by-hash votes
+   * Common data shared by votes
    */
 
   var VoteCommon = Nano.VoteCommon = (function() {
@@ -1044,8 +1202,32 @@ var Nano = (function() {
     VoteCommon.prototype._read = function() {
       this.account = this._io.readBytes(32);
       this.signature = this._io.readBytes(64);
-      this.sequence = this._io.readU8le();
+      this.timestampAndVoteDuration = this._io.readU8le();
     }
+
+    /**
+     * Number of seconds since the UTC epoch vote was generated at
+     */
+    Object.defineProperty(VoteCommon.prototype, 'timestamp', {
+      get: function() {
+        if (this._m_timestamp !== undefined)
+          return this._m_timestamp;
+        this._m_timestamp = (this.timestampAndVoteDuration & 18446744073709551600);
+        return this._m_timestamp;
+      }
+    });
+
+    /**
+     * Since V23.0 this is specified as 2^(duration + 4) in milliseconds
+     */
+    Object.defineProperty(VoteCommon.prototype, 'voteDurationBits', {
+      get: function() {
+        if (this._m_voteDurationBits !== undefined)
+          return this._m_voteDurationBits;
+        this._m_voteDurationBits = (this.timestampAndVoteDuration & 15);
+        return this._m_voteDurationBits;
+      }
+    });
 
     return VoteCommon;
   })();
@@ -1059,7 +1241,10 @@ var Nano = (function() {
       this._read();
     }
     MessageHeader.prototype._read = function() {
-      this.magic = this._io.ensureFixedContents([82]);
+      this.magic = this._io.readBytes(1);
+      if (!((KaitaiStream.byteArrayCompare(this.magic, [82]) == 0))) {
+        throw new KaitaiStream.ValidationNotEqualError([82], this.magic, this._io, "/types/message_header/seq/0");
+      }
       this.networkId = this._io.readU1();
       this.versionMax = this._io.readU1();
       this.versionUsing = this._io.readU1();
@@ -1067,6 +1252,20 @@ var Nano = (function() {
       this.messageType = this._io.readU1();
       this.extensions = this._io.readU2le();
     }
+
+    /**
+     * Since protocol version 19 (release 24).
+     * May be set for "bulk_pull" messages.
+     * If set, it reverses the order in which bulk_pull returns blocks. It returns the frontier block last.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'bulkPullAscendingFlag', {
+      get: function() {
+        if (this._m_bulkPullAscendingFlag !== undefined)
+          return this._m_bulkPullAscendingFlag;
+        this._m_bulkPullAscendingFlag = (this.extensions & 2);
+        return this._m_bulkPullAscendingFlag;
+      }
+    });
 
     /**
      * If set, this is a node_id_handshake response. This maybe be set at the
@@ -1097,7 +1296,7 @@ var Nano = (function() {
       get: function() {
         if (this._m_telemetrySize !== undefined)
           return this._m_telemetrySize;
-        this._m_telemetrySize = (this.extensions & 2047);
+        this._m_telemetrySize = (this.extensions & 1023);
         return this._m_telemetrySize;
       }
     });
@@ -1153,6 +1352,33 @@ var Nano = (function() {
           return this._m_queryFlag;
         this._m_queryFlag = (this.extensions & 1);
         return this._m_queryFlag;
+      }
+    });
+
+    /**
+     * Since protocol version 18 (release 21.3).
+     * May be set for "frontier_req" messages.
+     * If set, the frontier_req response contains confirmed frontiers for each account.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'confirmedPresent', {
+      get: function() {
+        if (this._m_confirmedPresent !== undefined)
+          return this._m_confirmedPresent;
+        this._m_confirmedPresent = (this.extensions & 2);
+        return this._m_confirmedPresent;
+      }
+    });
+
+    /**
+     * Since protocol version 19 (release 24)
+     * Must be set for "ascending pull messages" messages. Indicates size of payload of ascending pull message.
+     */
+    Object.defineProperty(MessageHeader.prototype, 'ascPullSize', {
+      get: function() {
+        if (this._m_ascPullSize !== undefined)
+          return this._m_ascPullSize;
+        this._m_ascPullSize = (this.extensions & 65535);
+        return this._m_ascPullSize;
       }
     });
 
@@ -1237,6 +1463,105 @@ var Nano = (function() {
   })();
 
   /**
+   * ascending pull request
+   */
+
+  var MsgAscPullReq = Nano.MsgAscPullReq = (function() {
+    function MsgAscPullReq(_io, _parent, _root) {
+      this._io = _io;
+      this._parent = _parent;
+      this._root = _root || this;
+
+      this._read();
+    }
+    MsgAscPullReq.prototype._read = function() {
+      this.base = new AscPullBase(this._io, this, this._root);
+      this._raw_payload = this._io.readBytes(this._root.header.ascPullSize);
+      var _io__raw_payload = new KaitaiStream(this._raw_payload);
+      this.payload = new AscPullReqPayload(_io__raw_payload, this, this._root);
+    }
+
+    /**
+     * ascend pull request acount info payload
+     */
+
+    var AccountInfoReqPayload = MsgAscPullReq.AccountInfoReqPayload = (function() {
+      function AccountInfoReqPayload(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      AccountInfoReqPayload.prototype._read = function() {
+        this.start = this._io.readBytes(32);
+        this.startType = this._io.readU1();
+      }
+
+      /**
+       * block hash or account pubkey to pull from
+       */
+
+      return AccountInfoReqPayload;
+    })();
+
+    /**
+     * ascend pull request block payload
+     */
+
+    var BlocksReqPayload = MsgAscPullReq.BlocksReqPayload = (function() {
+      function BlocksReqPayload(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      BlocksReqPayload.prototype._read = function() {
+        this.start = this._io.readBytes(32);
+        this.count = this._io.readU1();
+        this.startType = this._io.readU1();
+      }
+
+      /**
+       * block hash or account pubkey to pull from
+       */
+
+      /**
+       * max number of blocks to pull
+       */
+
+      return BlocksReqPayload;
+    })();
+
+    /**
+     * payload of ascend pull requests
+     */
+
+    var AscPullReqPayload = MsgAscPullReq.AscPullReqPayload = (function() {
+      function AscPullReqPayload(_io, _parent, _root) {
+        this._io = _io;
+        this._parent = _parent;
+        this._root = _root || this;
+
+        this._read();
+      }
+      AscPullReqPayload.prototype._read = function() {
+        if (this._parent.base.type == Nano.EnumAscPullType.ACCOUNT_PULL_TYPE) {
+          this.accountInfo = new AccountInfoReqPayload(this._io, this, this._root);
+        }
+        if (this._parent.base.type == Nano.EnumAscPullType.BLOCK_PULL_TYPE) {
+          this.blocks = new BlocksReqPayload(this._io, this, this._root);
+        }
+      }
+
+      return AscPullReqPayload;
+    })();
+
+    return MsgAscPullReq;
+  })();
+
+  /**
    * Signed telemetry response
    */
 
@@ -1256,9 +1581,9 @@ var Nano = (function() {
       this.uncheckedcount = this._io.readU8be();
       this.accountcount = this._io.readU8be();
       this.bandwidthcap = this._io.readU8be();
-      this.uptime = this._io.readU8be();
       this.peercount = this._io.readU4be();
       this.protocolversion = this._io.readU1();
+      this.uptime = this._io.readU8be();
       this.genesisblock = this._io.readBytes(32);
       this.majorversion = this._io.readU1();
       this.minorversion = this._io.readU1();
@@ -1267,6 +1592,15 @@ var Nano = (function() {
       this.maker = this._io.readU1();
       this.timestamp = this._io.readU8be();
       this.activedifficulty = this._io.readU8be();
+      if (this._io.pos < this._root.header.telemetrySize) {
+        this.unknownData = []
+        var i = 0;
+        do {
+          var _ = this._io.readU8le();
+          this.unknownData.push(_);
+          i++;
+        } while (!(this._io.pos == this._root.header.telemetrySize));
+      }
     }
 
     /**
@@ -1298,15 +1632,15 @@ var Nano = (function() {
      */
 
     /**
-     * Length of time a peer has been running for (in seconds)
-     */
-
-    /**
      * Peer count
      */
 
     /**
      * Protocol version
+     */
+
+    /**
+     * Length of time a peer has been running for (in seconds)
      */
 
     /**
@@ -1347,7 +1681,7 @@ var Nano = (function() {
     get: function() {
       if (this._m_constBlockZero !== undefined)
         return this._m_constBlockZero;
-      this._m_constBlockZero = this._io.ensureFixedContents([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      this._m_constBlockZero = this._io.readBytes(32);
       return this._m_constBlockZero;
     }
   });

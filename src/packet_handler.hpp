@@ -104,6 +104,9 @@ namespace nanocap
 		void handle_message (nano::protocol::nano_t::msg_bulk_pull_t & msg, nano_packet& info);
 		void handle_message (nano::protocol::nano_t::msg_bulk_push_t & msg, nano_packet& info);
 		void handle_message (nano::protocol::nano_t::msg_bulk_pull_account_t & msg, nano_packet& info);
+		void handle_message (nano::protocol::nano_t::msg_asc_pull_ack_t & msg, nano_packet& info);
+		void handle_message (nano::protocol::nano_t::msg_asc_pull_req_t & msg, nano_packet& info);
+
 
 		pcpp::PcapLiveDevice* get_device() { return dev; }
 		nanocap::app& get_app() const { return app; }

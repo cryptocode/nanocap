@@ -602,11 +602,23 @@ void nanocap::packet_handler::handle_tcp(nanocap::nano_packet& info)
 					this->handle_message (*msg, info);
 					break;
 				}
-				case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL_BLOCKS:
+				case nano::protocol::nano_t::ENUM_MSGTYPE_ASC_PULL_ACK:
 				{
-					// This message type is no longer used by the node
+					nano::protocol::nano_t::msg_asc_pull_ack_t* msg = static_cast<nano::protocol::nano_t::msg_asc_pull_ack_t*> (proto.body ());
+					this->handle_message (*msg, info);
 					break;
 				}
+				case nano::protocol::nano_t::ENUM_MSGTYPE_ASC_PULL_REQ:
+				{
+					nano::protocol::nano_t::msg_asc_pull_req_t* msg = static_cast<nano::protocol::nano_t::msg_asc_pull_req_t*> (proto.body ());
+					this->handle_message (*msg, info);
+					break;
+				}
+				// case nano::protocol::nano_t::ENUM_MSGTYPE_BULK_PULL_BLOCKS:
+				// {
+				// 	// This message type is no longer used by the node
+				// 	break;
+				// }
 			}
 		}
 	}
@@ -772,6 +784,34 @@ void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_bulk_p
 		if (get_app().get_config().capture.connection_details)
 		{
 			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "bulk_pull_account");
+		}
+	}
+
+	app.get_db().put(msg, info);
+}
+
+void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_asc_pull_ack_t & msg, nanocap::nano_packet& info)
+{
+	if (info.flow_data)
+	{
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_ASC_PULL_ACK);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "asc_pull_ack");
+		}
+	}
+
+	app.get_db().put(msg, info);
+}
+
+void nanocap::packet_handler::handle_message (nano::protocol::nano_t::msg_asc_pull_req_t & msg, nanocap::nano_packet& info)
+{
+	if (info.flow_data)
+	{
+		info.flow_data->reset(nano::protocol::nano_t::enum_msgtype_t::ENUM_MSGTYPE_ASC_PULL_REQ);
+		if (get_app().get_config().capture.connection_details)
+		{
+			get_app().get_db().put_connection(info.ip_version, info.src_ip, info.src_port, info.dst_ip, info.dst_port, info.flow_key, "asc_pull_req");
 		}
 	}
 
