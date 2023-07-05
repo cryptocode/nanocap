@@ -50,10 +50,18 @@ if (NANOCAP_GENERATE_PARSER)
 endif ()
 
 # Blake2
-file(GLOB_RECURSE blake2_sources
-	"src/blake2/ref/blake2*.h"
-	"src/blake2/ref/blake2*.c")
-include_directories (src/blake2/ref)
+# Check for SSE instruction set
+if(SSE STREQUAL "None" OR CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
+    file(GLOB_RECURSE blake2_sources
+        "src/blake2/ref/blake2*.h"
+        "src/blake2/ref/blake2*.c")
+    include_directories(src/blake2/ref)
+else()
+    file(GLOB_RECURSE blake2_sources
+        "src/blake2/sse/blake2*.h"
+        "src/blake2/sse/blake2*.c")
+    include_directories(src/blake2/sse)
+endif()
 
 add_library(blake2b ${blake2_sources})
 
