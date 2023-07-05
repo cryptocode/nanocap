@@ -880,6 +880,45 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_publish_t& msg, nan
 	return ec;
 }
 
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_asc_pull_ack_t& msg, nanocap::nano_packet& info)
+{	
+    std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+    std::lock_guard<std::mutex> guard (db_mutex);    
+    bind_header_fields(stmt_packet.get(), msg, packet_id);
+    bind_packet_fields(stmt_packet.get(), info);
+	stmt_packet->bind(":content_id", packet_id);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	// Prepare for next use
+	stmt_packet->reset();
+
+    // Continue as per your existing structure
+    return ec;
+}
+
+std::error_code nanocap::db::put(nano::protocol::nano_t::msg_asc_pull_req_t& msg, nanocap::nano_packet& info)
+{
+    std::error_code ec;
+	int64_t packet_id = next_id.fetch_add(1);
+    std::lock_guard<std::mutex> guard (db_mutex);    
+    bind_header_fields(stmt_packet.get(), msg, packet_id);
+    bind_packet_fields(stmt_packet.get(), info);
+	stmt_packet->bind(":content_id", packet_id);
+	
+	auto rows = stmt_packet->exec();
+	assert (rows == 1);
+	// Prepare for next use
+	stmt_packet->reset();
+
+    // Continue as per your existing structure
+    return ec;
+}
+
+
+
+
 // Must be called with db_mutex locked
 std::error_code nanocap::db::put_block(nano::protocol::nano_t::block_selector_t* block_selector,
 									   int64_t id, int64_t packet_id, std::string& content_table)

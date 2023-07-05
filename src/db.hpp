@@ -42,6 +42,8 @@ namespace nanocap
 		std::error_code put(nano::protocol::nano_t::msg_bulk_pull_account_t& msg, nano_packet& info);
 		std::error_code put(nano::protocol::nano_t::bulk_pull_account_response_t::frontier_balance_entry_t& entry, nano_packet& info);
 		std::error_code put(nano::protocol::nano_t::bulk_pull_account_response_t::bulk_pull_account_entry_t& entry, nano_packet& info);
+		std::error_code put(nano::protocol::nano_t::msg_asc_pull_ack_t& msg, nano_packet& info);		
+		std::error_code put(nano::protocol::nano_t::msg_asc_pull_req_t& msg, nano_packet& info);
 
 		/** Arbitrary query returned as json, including (real and synthentic) column names */
 		json query(std::string query);
@@ -161,6 +163,7 @@ namespace nanocap
 		std::unique_ptr<SQLite::Statement> stmt_bulk_pull_account_request;
 		std::unique_ptr<SQLite::Statement> stmt_bulk_pull_account_response;
 		std::unique_ptr<SQLite::Statement> stmt_bulk_pull_account_response_entry;
+		std::unique_ptr<SQLite::Statement> stmt_msg_asc_pull;
 
 		/** Next ID for sqlite insert (note that sqlite3 only supports signed integers */
 		std::atomic<std::int64_t> next_id {0};
