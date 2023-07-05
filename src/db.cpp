@@ -736,20 +736,8 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 	bind_header_fields(stmt_packet.get(), msg, packet_id);
 	bind_packet_fields(stmt_packet.get(), info);
 	
-	// Regular vote
-	if (msg.block())
-	{
-		int64_t block_content_id = next_id.fetch_add(1);
-		std::string content_table;
-		put_block(msg.block(), block_content_id, packet_id, content_table);
-		
-		stmt_vote->bind(":content_id", block_content_id);
-		stmt_vote->bind(":content_table", content_table);
-		stmt_vote->bind(":vote_count", 1);
-		stmt_vote->bind(":vbh", 0);
-	}
 	// Vote-by-hash
-	else if (msg.votebyhash() && msg.votebyhash()->hashes() && !msg.votebyhash()->hashes()->empty())
+	if (msg.votebyhash() && msg.votebyhash()->hashes() && !msg.votebyhash()->hashes()->empty())
 	{
 		stmt_vote->bind(":vbh", 1);
 		std::ostringstream hashes;
@@ -779,7 +767,7 @@ std::error_code nanocap::db::put(nano::protocol::nano_t::msg_confirm_ack_t& msg,
 	{
 		stmt_vote->bind(":account", pub_to_account(msg.common()->account()));
 		stmt_vote->bind(":signature", to_hex(msg.common()->signature()));
-		stmt_vote->bind(":sequence", static_cast<int64_t>(msg.common()->sequence()));
+		stmt_vote->bind(":sequence", static_cast<int64_t>(msg.common()->timestamp_and_vote_duration()));
 	}
 	else
 	{
